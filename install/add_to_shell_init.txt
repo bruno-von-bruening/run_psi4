@@ -1,0 +1,4 @@
+
+# paths for RUN_PSI4 pip module
+export RUN_PSI4_HOME="/home/bruno/1-0_custom_software/run_psi4"
+
