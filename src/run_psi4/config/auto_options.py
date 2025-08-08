@@ -14,17 +14,17 @@ def make_cc_options():
         cc_type='\'df\'',
         freeze_core='True',
     )
-def make_hf_options():
+def make_hf_options(open_spin:bool=False):
     """ DF-MP2 settings as of Psi4"""
     # https://psicode.org/psi4manual/1.9.x/scf.html
     return dict(
-        reference='\'rhf\'',
+        reference='\'rhf\'' if not open_spin else '\'uhf\'',
         scf_type='\'direct\'',
     )
-def make_dft_options():
+def make_dft_options(open_spin:bool=False):
     """ DF-MP2 settings as of Psi4"""
     return dict(
-        reference='\'rks\''
+        reference='\'rks\'' if not open_spin else '\'uks\''
     )
 
 def embed_value(x):

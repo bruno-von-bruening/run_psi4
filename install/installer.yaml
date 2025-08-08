@@ -1,0 +1,2 @@
+conda_env_file: run_psi4_env.yaml
+dependencies: []

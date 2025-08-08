@@ -8,5 +8,6 @@ dependencies:
   - numpy
   - psi4
   - dftd3-python
+  - pip
   - pip:
       - build

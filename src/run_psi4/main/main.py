@@ -244,13 +244,14 @@ def complete_calc(
         content+=[string_ion]
 
     #### Calculations
+    reference='rks' if multiplicity==1 else 'uks'
     calc_neut={
         'molecule':'monomer',
-        'reference':'rks',
+        'reference':reference,
         'en_var':'E_neut',
         'wfn_var':'wfn_neut'
     }
-    string_calc_neut = calc_string(dft_functional, basis_set, **calc_neut, marker='SCF_NEUTRAL')
+    string_calc_neut = calc_string(dft_functional, basis_set, **calc_neut, marker='SCF_NEUTRAL', reference=reference)
     save_calc_neut, wfn_neut_file, fchk_neut_file= save_wfn_string(calc_neut['wfn_var'], jobname=jobname, tag='neut', save_npy=save_npy) 
     content+=[f"#Calculate neutral molecule", string_calc_neut, *save_calc_neut]
 
@@ -686,7 +687,7 @@ def process_method(func, basis_set):
 
     return func, basis_set, do_ip_tune, do_grac
 
-def psi4_input_single(job,func, basis_set, geom, input_file_name, storage_file_name=None, jobname=None,
+def psi4_input_single(job,func, basis_set, geom, open_spin:bool, input_file_name, storage_file_name=None, jobname=None,
     num_threads=4, memory='4GB',
 ):
     """ Create an single psi4 input file """
@@ -785,9 +786,9 @@ def psi4_input_single(job,func, basis_set, geom, input_file_name, storage_file_n
         elif meth_flags['cc']:
             the_options.update( p4ut.make_cc_options() )
         elif meth_flags['hf']:
-            the_options.update( p4ut.make_hf_options() )
+            the_options.update( p4ut.make_hf_options(open_spin=open_spin) )
         else:
-            the_options.update( p4ut.make_dft_options() )
+            the_options.update( p4ut.make_dft_options(open_spin=open_spin) )
         
         if do_ip_tuning:
             the_options.update(dict(
@@ -858,26 +859,15 @@ def psi4_input_single(job,func, basis_set, geom, input_file_name, storage_file_n
 
 
 
-def execute_psi4_shell(input_file, conda_env=None, conda_exc=os.path.join(os.environ['HOME'], 'miniconda3/bin/conda') ):
+def execute_psi4_shell(input_file, psi4_executable=None ):
     
     import subprocess
-    if isinstance(conda_env, type(None)):
-        # Get psi4
-        try:
-            get_psi4=subprocess.Popen(f"which psi4", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr=get_psi4.communicate()
-            if get_psi4.returncode==0:
-                psi4_executable=stdout.decode().strip()
-            else:
-                raise Exception(f"No psi4 found")
-        except Exception as ex:
-            print(f"Did not found psi4 executable in shell: \'{ex}\'")
-            psi4_executable='/home/bruno/0_Software/miniconda3/envs/qcAPI/bin/psi4'
-            #psi4_executable='/home/bruno/opt/miniconda3/envs/p4env/bin/psi4'
-        assert os.path.isfile(psi4_executable), f"Psi4 executable does not exist \'{psi4_executable}\'"
-    else:
-        assert os.path.isfile(conda_exc), f"The conda executable does not exist: {conda_exc}"
-        psi4_executable=f"{conda_exc} run -n {conda_env} psi4"
+    if psi4_executable is None:
+        psi4_executable=os.path.join( os.path.dirname(os.path.realpath(sys.executable)),  'psi4' )
+        if not os.path.isfile(psi4_executable): raise Exception(f"Cannot find 'psi4' executable in same folder as  {sys.executable}")
+    #else:
+    #    assert os.path.isfile(conda_exc), f"The conda executable does not exist: {conda_exc}"
+    #    psi4_executable=f"{conda_exc} run -n {conda_env} psi4"
 
     output_file=input_file.split('.')[0]+'.psi4out'
     cmd=f"{psi4_executable} {input_file} {output_file}"
@@ -902,6 +892,8 @@ def psi4_run(
     func=None,
     basis_set=None,
     xyz_file=None,
+    total_charge: int|None=None,
+    multiplicity: int|None=None,
     execute=False,
     input_file_name=None,
     do_test=False,
@@ -909,6 +901,9 @@ def psi4_run(
     memory='4GB',
     add_method_tags=True,
 ):
+    if total_charge is None: raise Exception(f"Specify total charge (for safity)")
+    if multiplicity is None: raise Exception(f"Specify multiplicity (for safity)")
+
     try:
         float(memory)
         memory=f"{memory.strip()}GB"
@@ -1000,9 +995,10 @@ def psi4_run(
         # Get geometry from xyz file
         try:
             atom_types, coordinates = xyz_file_read(xyz_fi)
-            charge=0
-            multiplicity=1
-            molecule_str='\n'.join([4*' '+x for x in molecule_string(atom_types=atom_types, coordinates=coordinates, units={'LENGTH':'ANGSTROM'}).split('\n') ])
+            charge=total_charge
+            multiplicity=multiplicity
+            molecule_str='\n'.join([4*' '+x for x in molecule_string(
+                atom_types=atom_types, coordinates=coordinates, total_charge=total_charge, multiplicity=multiplicity, units={'LENGTH':'ANGSTROM'}).split('\n') ])
             molecule_name="monomer"
             molecule_lines=[ f"#Define the molecule (definition in molecule string has the advantage of being able to create new molecules reliable)",
                 f"monomer_string=\"\"\"\n{molecule_str}\n\"\"\"", f"{molecule_name}=Molecule.from_string(monomer_string)"]
@@ -1016,6 +1012,8 @@ def psi4_run(
             }
         except Exception as ex:
             raise Exception(f"Could not process {xyz_fi} as xyz_file: {ex}")
+
+        open_spin=not multiplicity==1
         
         # For given geometry get all input files
         for f in func:
@@ -1033,7 +1031,7 @@ def psi4_run(
                 input_file_name=f"{job_mapper[job].upper()}_{jobname}.psi4inp"
                 storage_file_name=f"STORAGE_{job_mapper[job].upper()}_{f}_{b}_{os.path.basename(xyz_fi).split('.')[0]}.yaml"
                 input_file_name, storage_file_name = psi4_input_single(
-                    job, f, b, geom, input_file_name, storage_file_name=storage_file_name, jobname=jobname, 
+                    job, f, b, geom, open_spin, input_file_name, storage_file_name=storage_file_name, jobname=jobname, 
                     num_threads=num_threads, memory=memory)
                 input_and_storage_files.append({'input':input_file_name, 'storage':storage_file_name})
                 
