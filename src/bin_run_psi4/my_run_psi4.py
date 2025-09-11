@@ -25,6 +25,7 @@ def main():
     
     # Run specifications
     add('--exc', action='store_true', help=f"Exceute psi4 (requires conda environment that runs psi4)")
+    add('--executable', help=f"Exceutable to run psi4 with!")
     add('--test', action='store_true', help=f"Run a test (also provide exc statement to run!)")
     add(
         '--num_threads', type=int, help=f"Number of threads the psi4 process will use", default=8,
@@ -40,6 +41,7 @@ def main():
     func        = args.func
     basis_set   = args.basis
     execute     = args.exc
+    executable  = args.executable
     do_test     = args.test
     num_threads = args.num_threads
     memory      = args.memory
@@ -54,6 +56,7 @@ def main():
         multiplicity=multiplicity,
         xyz_file=xyz_file,
         execute=execute,
+        executable=executable,
         do_test=do_test,
         num_threads=num_threads,
         memory=memory,

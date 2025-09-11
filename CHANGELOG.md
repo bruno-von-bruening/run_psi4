@@ -4,3 +4,6 @@ Globally accessible executables.
 Simplified finding of ```psi4``` executable in ```main/main.py```.
 
 Changed ```auto_options.py``` to dynamically assign restricted or open shell case (also changes in ```main/main.py```).
+
+# v0.1.03 executable from argument line
+

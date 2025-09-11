@@ -520,12 +520,16 @@ def get_grac_shift(func_var, basis_set_var, molecule_name='monomer', charge=0, s
     # Compute the difference -> grac_shift
     ac_var=f"AC_shift"
     string=[ x.strip() for x in f"""
-    E_homo = {wfn_neut}.epsilon_a_subset('AO', 'ALL').np[{wfn_neut}.nalpha()-1]
-    IP = {E_ion} - {E_neut}
+    E_homo = float({wfn_neut}.epsilon_a_subset('AO', 'ALL').np[{wfn_neut}.nalpha()-1])
+    IP = float({E_ion}) - float({E_neut})
     {ac_var} = IP + E_homo
     """.split('\n') ]
 
-    grac_string=neut_string+ion_string+string
+    store_string=[
+        f"storage['results'].update({{ 'HOMO': E_homo, 'IP': IP , 'AC_SHIFT': {ac_var} }})",
+    ]
+
+    grac_string=neut_string+ion_string+string+store_string
     return grac_string, ac_var
 def set_grac_shift(ac_var):
     return [x.strip() for x in f"""
@@ -895,6 +899,7 @@ def psi4_run(
     total_charge: int|None=None,
     multiplicity: int|None=None,
     execute=False,
+    executable=None,
     input_file_name=None,
     do_test=False,
     num_threads=4,
@@ -1039,7 +1044,7 @@ def psi4_run(
             input_file_name=di['input']
             storage_file=di['storage']
             if execute:
-                execute_psi4_shell(input_file_name)
+                execute_psi4_shell(input_file_name, psi4_executable=executable)
             else:
                 print(f"Wrote the {job} instructions to {input_file_name}")
         return input_and_storage_files
