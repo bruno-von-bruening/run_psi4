@@ -1,0 +1,5 @@
+name: psi4_test
+channels:
+  - conda-forge
+dependencies:
+  - psi4
