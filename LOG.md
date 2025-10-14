@@ -7,3 +7,6 @@ Changed ```auto_options.py``` to dynamically assign restricted or open shell cas
 
 # v0.1.03 executable from argument line
 
+# v0.1.04 added direct provision of AC shift
+Allowed to provide ac shift
+Uncluttered main file (partially).

@@ -18,6 +18,7 @@ def main():
     add('--xyz', help=f"xyz_file to process")
     add('--total_charge', type=int,help=f"Charge of the system", default=0)
     add('--multiplicity', type=int, default=1, help=f"Multiplicity of system spin state")
+    add('--ac_shift', type=float, default=None, help=f"AC shift")
     
     # Calculation specification
     add('--func', default='pbe0', help=f"Functional for psi4 calculations")
@@ -37,6 +38,8 @@ def main():
     xyz_file    = args.xyz
     total_charge= args.total_charge
     multiplicity= args.multiplicity
+    ac_shift    = args.ac_shift
+    # 
     job         = args.job
     func        = args.func
     basis_set   = args.basis
@@ -45,8 +48,6 @@ def main():
     do_test     = args.test
     num_threads = args.num_threads
     memory      = args.memory
-
-        
 
     psi4_run(
         job,
@@ -60,6 +61,7 @@ def main():
         do_test=do_test,
         num_threads=num_threads,
         memory=memory,
+        ac_shift=ac_shift,
     )
                 
 
