@@ -10,3 +10,7 @@ Changed ```auto_options.py``` to dynamically assign restricted or open shell cas
 # v0.1.04 added direct provision of AC shift
 Allowed to provide ac shift
 Uncluttered main file (partially).
+
+# v0.1.04.01 fixed imports
+For polarizability calculation.
+Some import were broken due to changes in my packages.

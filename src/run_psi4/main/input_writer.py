@@ -195,7 +195,7 @@ def get_polarizability(method, geom=None, storage_var=None):
                 atom_numbers.append(at_ty)
             elif isinstance(at_ty, str):
                 assert len(at_ty)<3 and len(at_ty)>0
-                Z=atom_type_to_Z(at_ty)
+                Z=element_symbol_to_nuclear_charge(at_ty)
                 atom_numbers.append(Z)
         atom_numbers=np.array(atom_numbers)
         com=np.sum(atom_numbers[:,None]*coordinates, axis=0)/np.sum(atom_numbers)
@@ -212,8 +212,8 @@ def get_polarizability(method, geom=None, storage_var=None):
     #"   \'basis\' : basis_set,",
     #"   \'reference\' : 'rks',",
     #"})",
-    "print(functional, monomer, props)",
-    "E, wfn = properties(functional, molecule=monomer, properties= props, return_wfn=True)",
+    "print(method, monomer, props)",
+    "E, wfn = properties(method, molecule=monomer, properties= props, return_wfn=True)",
     ]
 
     # Get the polarisabilities
@@ -408,7 +408,7 @@ def get_ip_tuned_omega(func, basis, molecule_name='monomer', charge=0, spin=1, s
         return  [new_x_lw, new_x_md, new_x_up]
     def return_diff_values(omega_range, old_omega_range, old_omega_vals):
         if isinstance(old_omega_range, type(None)):
-            new_vals = [ get_ip_diff({molecule_name}, functional, basis_set, om, IP) for om in omega_range]
+            new_vals = [ get_ip_diff({molecule_name}, method, basis_set, om, IP) for om in omega_range]
         else:
             mapper=dict( [ (k,v) for k,v in zip(old_omega_range, old_omega_vals)])
             new_vals=[]
@@ -417,7 +417,7 @@ def get_ip_tuned_omega(func, basis, molecule_name='monomer', charge=0, spin=1, s
                 if om in mapper.keys():
                     new_vals.append(mapper[om])
                 else:
-                    new_vals.append(get_ip_diff({molecule_name}, functional, basis_set, om, IP) )
+                    new_vals.append(get_ip_diff({molecule_name}, method, basis_set, om, IP))
         return new_vals
 
     omegas_ini=[ 0.1 ,  .5 , .9 ]
