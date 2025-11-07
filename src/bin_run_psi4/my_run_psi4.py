@@ -3,17 +3,17 @@
 import os, sys, re, time
 import numpy as np
 
-from run_psi4.main.main import psi4_run
+from run_psi4.main.main import psi4_run, allowed_job_choices
+from run_psi4.util.import_helper import warn, info
 
 def main():
     description=None
     epilog=None
-    job_choices=['polarizabilities','single_point']
     import argparse as ap; par=ap.ArgumentParser(description=description, epilog=epilog)
     add=par.add_argument
-    
-    add('job', help=f"What to do", choices=job_choices)
-    
+
+    add('job', help=f"What to do", choices=allowed_job_choices)
+
     # System specification
     add('--xyz', help=f"xyz_file to process")
     add('--total_charge', type=int,help=f"Charge of the system", default=0)
@@ -49,19 +49,35 @@ def main():
     num_threads = args.num_threads
     memory      = args.memory
 
+    if total_charge is None:
+        warn(f"No total charge provided, assuming neutral system!")
+        total_charge=0
+    if multiplicity is None:
+        warn(f"No multiplicity provided, assuming singlet!")
+        multiplicity=1
+
+    if do_test and xyz_file is None:
+        geom=None
+    else:
+        geom= {
+            'input':xyz_file,
+            'charge': total_charge,
+            'multiplicity':multiplicity,
+            'ac_shift': ac_shift,
+        }
+
     psi4_run(
         job,
-        func=func,
+        method=func,
         basis_set=basis_set,
-        total_charge=total_charge,
-        multiplicity=multiplicity,
-        xyz_file=xyz_file,
+        geom=geom,
         execute=execute,
         executable=executable,
         do_test=do_test,
-        num_threads=num_threads,
-        memory=memory,
-        ac_shift=ac_shift,
+        machine_settings=dict(
+            num_threads=num_threads,
+            memory=memory,
+        )
     )
                 
 

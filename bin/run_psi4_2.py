@@ -3,7 +3,7 @@
 import os, sys, re, time
 import numpy as np
 
-from run_psi4.main.main import psi4_run
+from run_psi4.main.main_base import psi4_run
 
 
 

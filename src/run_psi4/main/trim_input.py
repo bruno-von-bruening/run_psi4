@@ -27,7 +27,7 @@ def check(input,object_type, default={}, ):
         assert all([isinstance(x,str) for x in func])
 
     elif isinstance(input, str):
-        input=[input]
+        return input
     
     elif isinstance(input, type(None)):
         if not do_test:

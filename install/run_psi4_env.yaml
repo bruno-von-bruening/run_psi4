@@ -1,4 +1,4 @@
-name: run_psi4
+name: run_psi4_test
 channels:
    - conda-forge
    - conda-forge/label/libint_dev
@@ -11,3 +11,4 @@ dependencies:
   - pip
   - pip:
       - build
+      - rdkit
