@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+# The name of this file needs to be different that the name of the module.... (would prefer to just call it through run_psi4.py)
+
 import os, sys, re, time
 import numpy as np
 

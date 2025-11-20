@@ -1,4 +1,4 @@
-name: psi4_test
+name: psi4_test2
 channels:
   - conda-forge
 dependencies:

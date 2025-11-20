@@ -38,14 +38,15 @@ class geometry(geometry):
         if self.charge is None: raise Exception(f"Specify total charge (for safety)")
         if self.multiplicity is None: raise Exception(f"Specify multiplicity (for safety)")
     @val_call
-    def molecule_lines(self, molecule_name:str):
+    def molecule_lines(self, molecule_name:str) -> Tuple[List[str],str]:
         self.units.LENGTH='ANGSTROM' # Import so that coordinates are returned in angstroms!
+        mol_string=f"monomer_string"
         molecule_str='\n'.join([4*' '+x for x in psi4_molecule_string(
             atom_types=self.atom_types, coordinates=self.coordinates, total_charge=self.charge, multiplicity=self.multiplicity, units={'LENGTH':'ANGSTROM'}).split('\n') ])
         assert molecule_name!='', "Provide a valid molecule name! (molecule name is empty)"
         molecule_lines=[ f"#Define the molecule (definition in molecule string has the advantage of being able to create new molecules reliable)",
-            f"monomer_string=\"\"\"\n{molecule_str}\n\"\"\"", f"{molecule_name}=Molecule.from_string(monomer_string)"]
-        return molecule_lines
+            f"{mol_string}=\"\"\"\n{molecule_str}\n\"\"\"", f"{molecule_name}=Molecule.from_string(monomer_string)"]
+        return molecule_lines, mol_string
     @property
     def open_shell(self):
         """ Assumes that multiplicity 1 assumes open shell"""

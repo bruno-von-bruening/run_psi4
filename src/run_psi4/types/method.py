@@ -8,7 +8,7 @@ def check_ip_tuning(comp):
     return comp.upper() in ip_tags
 
 @val_call
-def process_method(method:str) -> Dict[str,str]:
+def process_method(method:str) -> Dict[str,str|bool]:
     # Check for grac
     separator='-'
     components=method.upper().split(separator)
@@ -34,32 +34,42 @@ def process_method(method:str) -> Dict[str,str]:
     return ret
 
 
-def compute_grac_shift(func_var, basis_set_var, molecule_name='monomer', charge=0, spin=1):
+@val_call
+def compute_grac_shift(
+    func_var, basis_set_var, molecule_name, molecule_string, charge=0, spin=1
+) -> Tuple[List[str],str]:
+    from run_psi4.main.input_writer import get_gs_energy, get_ionization_energy
     neut_string, E_neut, wfn_neut = get_gs_energy(func_var, basis_set_var, molecule_name=molecule_name)
-    ion_string, E_ion, wfn_ion    = get_ionization_energy(func_var, basis_set_var, molecule_name=molecule_name)
+    ion_string, E_ion, wfn_ion    = get_ionization_energy(func_var, basis_set_var, molecule_name=molecule_name, molecule_string=molecule_string)
 
     # Compute the difference -> grac_shift
     ac_var=f"AC_shift"
-    string=[ x.strip() for x in f"""
-    E_homo = float({wfn_neut}.epsilon_a_subset('AO', 'ALL').np[{wfn_neut}.nalpha()-1])
-    IP = float({E_ion}) - float({E_neut})
-    {ac_var} = IP + E_homo
-    """.split('\n') ]
-
+    string=[ 
+            '# computing grac shift as IP+HOMO',
+            f"E_homo = float({wfn_neut}.epsilon_a_subset('AO', 'ALL').np[{wfn_neut}.nalpha()-1])",
+            f"IP = float({E_ion}) - float({E_neut})",
+            f"{ac_var} = IP + E_homo",
+    ]
     store_string=[
+        f"# Store the values"
         f"storage['results'].update({{ 'HOMO': E_homo, 'IP': IP , 'AC_SHIFT': {ac_var} }})",
     ]
 
     grac_string=neut_string+ion_string+string+store_string
-    return grac_string, ac_var
-def set_grac_shift(ac_var:str|float):
+    return grac_string,ac_var
+
+@val_call
+def set_grac_shift(
+    ac_var:str|float
+) -> Tuple[List[str],str]:
+    grac_var='the_grac_shift'
     return [x.strip() for x in f"""
         set_options({{'dft_grac_shift': {ac_var}}})
-        the_grac_shift=get_option('SCF','dft_grac_shift')
-        print_out(f\"GRAC SHIFT SET TO: {{the_grac_shift}}\")
-        assert the_grac_shift>0.0, f\"The grac shift is not larger zero!\"
+        {grac_var}=get_option('SCF','dft_grac_shift')
+        print_out(f\"GRAC SHIFT SET TO: {{{grac_var}}}\")
+        assert {grac_var}>0.0, f\"The grac shift is not larger zero!\"
         """.split('\n')
-    ]
+    ],grac_var
 
 def method_setup_lines(method, geom):
 
@@ -69,6 +79,12 @@ def method_setup_lines(method, geom):
     the_options=dict(
         basis=method.basis_set_var,
     )
+
+    # lines+=[f"psi4.set_options({{",
+    #  f"\"scf_type\": \"df\",",
+    # f"\"e_convergence\": 1e-12,",      # energy convergence
+    # f"\"d_convergence\": 1e-12,",       # density matrix convergence
+    # f"}})"]
 
     # MP2 related keywords
     if meth_flags['mp2']:
@@ -142,22 +158,29 @@ class psi4_method(psi4_method):
         return [ x.strip() for x in 
             f"""\
             # Description of the method (indicate correction in comments)
-            {self.func_var}='{self.method}'
+            {self.func_var}=\"{self.method}\"
             {self.basis_set_var}='{basis_set}'
             # IP_TUNING: {self.do_ip_tuning}
             # GRAC correction: {self.do_grac}
             {storage_var}['settings'].update({{\'method\': method, 'basis_set': basis_set, \'grac_correction\':{self.do_grac}, \'ip_tuning\':{self.do_ip_tuning}}})"""
             .split('\n')
         ]
+
     @val_call
-    def make_grac_lines(self, ac_shift:float|None=None) -> Tuple[List[str], str]:
+    def make_grac_lines(self, ac_shift:float|None=None, molecule_name:str|None=None, molecule_string:str|None=None) -> List[str] :
         assert self.do_grac, "Requested to make grac string but was internally set false (something is wrong in code logic)"
         if ac_shift is not None:
             grac_string=[f"# Using user provided AC shift of {ac_shift} (assumed to be in Hartree)"]
-            grac_string+=set_grac_shift(ac_shift)
+            grac_lines, grac_var=set_grac_shift(ac_shift)
+            grac_string+=grac_lines
+            self.grac_shift_var=grac_var
         else:
             grac_string=[f"# No grac shift provided, computing HOMO and IP to get AC shift"]
-            grac_string+=compute_grac_shift(self.func_var,self.basis_set_var)
+            assert molecule_name is not None, f"Provide moleucle name for grac shift calculation!"
+            assert molecule_string is not None, f"Provide moleucle string for grac shift calculation!"
+            grac_lines, grac_var=compute_grac_shift(self.func_var,self.basis_set_var, molecule_name, molecule_string)
+            self.grac_shift_var=grac_var
+            grac_string+=grac_lines
         return grac_string
     @val_call
     def method_setting_lines(self, geom: geometry):

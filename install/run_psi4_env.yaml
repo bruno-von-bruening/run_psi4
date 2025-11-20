@@ -1,4 +1,4 @@
-name: run_psi4_test
+name: run_psi4_test2
 channels:
    - conda-forge
    - conda-forge/label/libint_dev

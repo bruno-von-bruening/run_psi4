@@ -3,13 +3,21 @@ from .geom import geometry, geometry_wrapper
 from .machine_settings import machine_settings, my_machine_settings
 from .method import psi4_method
 
+### Make variable file registry
+# class variables(BaseModel):
+#     the_vars: Dict[str,str]
+
+
+
 class variable_names(BaseModel):
     storage: str =f"storage" # internally used variable name
     molecule_name: str = f"the_molecule" # call the two make clear that this is an instance
+    molecule_string: str = f"monomer_string"
     storage_file_name: str = f"storage_file" # internally used variable name
 class file_names(BaseModel):
     storage: str | None=None # The file that will be generated after the run
     input: str | None=None # The input file name
+    fchk: str|None=None
 
 class psi4_job(myBaseModel):
     jobtag : str
@@ -28,13 +36,16 @@ class psi4_job(myBaseModel):
     var_names : variable_names = variable_names()
     files : file_names = file_names()
     
-    __job_mapper__={'polarizabilities':'POLARIZ',
-                'single_point':'SP',
-                'polarizability_finite_field':'POLARIZ_FF'
-    }
+    __job_mapper__=dict(
+            polarizabilities='POLARIZ',
+            single_point='SP',
+            polarizability_finite_field='POLARIZ_FF',
+            optimization='OPT',
+    )
     @classmethod
     def escape(cls,x):
-        return x.replace('(','\\(').replace(')','\\)')
+        return x
+        #return x.replace('(','\\(').replace(')','\\)')
     def make_job_name(self):
         jobname=f"{os.path.basename(self.geom.ifi).split('.')[0]}"
         if self.add_method_tags:

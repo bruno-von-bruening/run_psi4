@@ -19,12 +19,14 @@ def make_hf_options(open_spin:bool=False):
     # https://psicode.org/psi4manual/1.9.x/scf.html
     return dict(
         reference='\'rhf\'' if not open_spin else '\'uhf\'',
-        scf_type='\'direct\'',
+        scf_type='\'df\'',
+        # scf_type='\'direct\'',
     )
 def make_dft_options(open_spin:bool=False):
     """ DF-MP2 settings as of Psi4"""
     return dict(
-        reference='\'rks\'' if not open_spin else '\'uks\''
+        reference='\'rks\'' if not open_spin else '\'uks\'',
+        scf_type='\'df\'',
     )
 
 def embed_value(x):

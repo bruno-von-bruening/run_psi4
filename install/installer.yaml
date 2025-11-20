@@ -1,2 +1,2 @@
 conda_env_file: run_psi4_env.yaml
-dependencies: ['QCP_GLOBAL_UTILS_HOME']
+dependencies: ['QCP_GLOBAL_UTILS_HOME', 'QCP_OBJECTS']

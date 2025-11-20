@@ -11,5 +11,7 @@ classifiers = [
 
 # Scripts that will be system wide available after activation of conda environment, which the pip package is installed
 # within
-[project.scripts]
-"my_run_psi4.py" = "bin_run_psi4:my_run_psi4.main"
+# [project.scripts]
+# "my_run_psi4.py" = "bin_run_psi4:my_run_psi4.main"
+[tool.setuptools]
+script-files = ["bin/run_psi4_exe.py"]

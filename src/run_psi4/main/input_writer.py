@@ -128,24 +128,27 @@ def save_wfn_string(wfn_var, jobname, tag, save_fchk=True, save_npy=False):
     return local_content, wfn_file, fchk_file
     return lines
 
-def get_gs_energy(func, basis, molecule_name='monomer', uks=False):
+@val_call
+def get_gs_energy(func, basis, molecule_name='monomer', uks=False) ->Tuple[List[str],str,str]:
     E_var='E_neut'
     wfn_var='wfn_neut'
     if uks:
         ref='uks'
     else:
         ref='rks'
-    base_string= [ x.strip() for x in f"""
-    set reference {ref}
-    set_options({{
-        'basis': {basis},
-        'reference': 'rks',
-    }})
-    {E_var},{wfn_var} = energy({func}, molecule={molecule_name}, return_wfn=True)
-    """.split('\n') ]
+    base_string= [
+    f"set_options({{",
+    ind+f"\'basis\': {basis},",
+    ind+f"'reference': '{ref}',",
+    f"}})",
+    ]
+    base_string+=[
+    f"{E_var},{wfn_var} = energy({func}, molecule={molecule_name}, return_wfn=True)"
+    ]
     return base_string, E_var, wfn_var
 
-def get_ionization_energy(func_var, basis_set_var, molecule_name='monomer', uks=True):
+@val_call
+def get_ionization_energy(func_var, basis_set_var, molecule_name='monomer', molecule_string='molecule_string', uks=True) -> Tuple[List[str],str,str]:
     E_var='E_ion'
     wfn_var='wfn_ion'
     if uks:
@@ -154,7 +157,8 @@ def get_ionization_energy(func_var, basis_set_var, molecule_name='monomer', uks=
         ref='rks'
     molecule_ion_name=molecule_name+"_ion"
     base_string= [ x.strip() for x in f"""
-    {molecule_ion_name}=Molecule.from_string({molecule_name}_string)
+    {molecule_ion_name}=Molecule.from_string({molecule_string})
+    assert {molecule_name}.multiplicity()==1, \"Expected multiplicity 1 for ion, got {molecule_name}.multiplicity (need to handle other ones)\"
     {molecule_ion_name}.set_molecular_charge({molecule_name}.molecular_charge()+1)
     {molecule_ion_name}.set_multiplicity({molecule_name}.multiplicity()+1)
     set_options({{

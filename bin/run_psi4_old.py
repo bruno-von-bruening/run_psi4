@@ -5,10 +5,7 @@ import numpy as np
 
 from run_psi4.main.main_base import psi4_run
 
-
-
-
-if __name__=='__main__':
+def main():
     description=None
     epilog=None
     job_choices=['polarizabilities','single_point']
@@ -48,5 +45,7 @@ if __name__=='__main__':
         num_threads=num_threads,
         memory=memory,
     )
-                
+
+if __name__=='__main__':
+    main()
 

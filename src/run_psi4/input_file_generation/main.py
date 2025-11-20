@@ -2,10 +2,11 @@ from . import *
 from .utils import *
 
 from run_psi4.types.job import psi4_job
-from .storage import make_storage_variable, dump_storage
+from .storage import make_storage_variable, dump_storage, store_timing
 from .job_lines.sinple_point import get_single_point
 from .job_lines.polarisabilities import get_polarizability
 from .job_lines.pol_ff import generate_pol_ff_job_lines
+from .job_lines.optimize import optimization
 
 def make_preamble(job: psi4_job):
     #
@@ -29,9 +30,7 @@ def make_preamble(job: psi4_job):
     # STORAGE SETUP
     # 
     storage_lines=make_storage_variable(
-        job.var_names.storage, 
-        job.var_names.storage_file_name, 
-        job.files.storage
+        job    
     )
 
 
@@ -42,12 +41,12 @@ def make_preamble(job: psi4_job):
     return preamble
 
 @val_call
-def method_section(job:psi4_job):
+def method_section(job:psi4_job) -> List[str]:
     method=job.method
     method_definition=method.method_definitions(job.var_names.storage, job.basis_set)
 
     if method.do_grac:
-        grac_lines=method.make_grac_lines()
+        grac_lines=method.make_grac_lines(molecule_name=job.var_names.molecule_name, molecule_string=job.var_names.molecule_string)
     else: grac_lines=[]
 
     if method.do_ip_tuning:
@@ -59,6 +58,34 @@ def method_section(job:psi4_job):
     method_lines+=method.method_setting_lines(job.geom)
     return method_lines
 
+class JobTagMapper:
+    POLARIZ = 'POLARIZ'
+    SP = 'SP'
+    POLARIZ_FF = 'POLARIZ_FF'
+    OPT = 'OPT'
+
+    _tags = {
+        POLARIZ: [],
+        SP: [],
+        POLARIZ_FF: [],
+        OPT: []
+    }
+
+    @classmethod
+    def get_unique_key(cls, key: str) -> str:
+        key_lower = key.lower().strip()
+        found = []
+        for canonical, aliases in cls._tags.items():
+            all_keys = [ x.lower().strip() for x in [canonical] + aliases ]
+            if key_lower in all_keys:
+                found.append(canonical.upper())
+        if len(found) == 0:
+            raise Exception(f"Internal problem: cannot interpret jobtag '{key}'")
+        elif len(found) == 1:
+            return found[0].upper()
+        else:
+            raise Exception(f"Coding error: '{key}' mapped on multiple tags! {found}")
+
 def psi4_input_single(
         job: psi4_job
 ):
@@ -69,26 +96,34 @@ def psi4_input_single(
 
     # Creation of the molecul, jobname=Nonee
     geom=job.geom
-    molecule_lines=geom.molecule_lines(job.var_names.molecule_name)
+    molecule_lines, monomer_string=geom.molecule_lines(job.var_names.molecule_name)
+    job.var_names.molecule_string=monomer_string
 
     method_section_lines=method_section(job)
 
 
     # Get the job
     storage_var=job.var_names.storage
-    if job.jobtag in ['POLARIZ']:
-        get_polarizability_lines=get_polarizability(job)
-        job_lines=['started_polarizabilities=time.time()'] + get_polarizability_lines + \
-        [f"{storage_var}['about_the_run']['timings'].update({{'polarizabilities':time.time()-started_polarizabilities}})"]
-    elif job.jobtag in ['SP']:
-        single_point_lines=get_single_point(job)
-        job_lines=['# Starting a single point calculation', 'started_single_point=time.time()'] + single_point_lines
-        job_lines+=[f"{storage_var}['about_the_run']['timings'].update({{'single_point':time.time()-started_single_point}})"]
-    elif job.jobtag in ['POLARIZ_FF']:
-        job_lines=['# Starting a polarizability calculation from finite field', 'started_pol_ff=time.time()']
-        job_lines+=generate_pol_ff_job_lines(job)
+
+    unique_tag=JobTagMapper.get_unique_key(job.jobtag)
+
+    if unique_tag == JobTagMapper.POLARIZ:
+        job_lines = get_polarizability(job)
+    elif unique_tag == JobTagMapper.SP:
+        job_lines = get_single_point(job)
+    elif unique_tag == JobTagMapper.POLARIZ_FF:
+        job_lines = generate_pol_ff_job_lines(job)
+    elif unique_tag == JobTagMapper.OPT:
+        job_lines = optimization(job)
     else:
-        raise Exception(f"No job defined for {job.jobtag}")
+        raise Exception(f"Job tag not handled yet: {unique_tag}")
+
+    job_lines = [
+        '# Starting job',
+        f"start_{unique_tag.lower()}=time.time()",
+        *job_lines,
+        *store_timing(job,f"Total Time for {unique_tag}", f"start_{unique_tag.lower()}"),
+    ]
 
     content= [  *preamble, '',
                 *molecule_lines, '',
@@ -98,6 +133,8 @@ def psi4_input_single(
                 f'clean()'
     ]
 
+    for x in content:
+        assert isinstance(x,str), f"Not a string {x}"
     with open(job.files.input,'w') as wr:
         wr.write('\n'.join(content))
     return job
