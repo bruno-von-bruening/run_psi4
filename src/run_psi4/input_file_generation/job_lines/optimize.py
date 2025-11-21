@@ -50,6 +50,8 @@ def optimization(job:psi4_job) -> List[str]:
         f"except Exception as ex:",
         ind+f"xyz_geom={job.var_names.molecule_name}.save_string_xyz()",
         ind+f"print_out(f\"WARNING: could not cannonically orient the molecule: {{str(ex)}}\")",
+        f"with open(\'{job.jobname}.xyz\', \'w\') as wr:",
+        ind+f"wr.write(f\"{{{job.var_names.molecule_name}.natom()}}\\nOptimized with psi4;  Char Mult{{xyz_geom}}\")",
     ]
 
     saveargs=dict(

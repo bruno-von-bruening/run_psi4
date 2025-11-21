@@ -16,11 +16,14 @@ def process_method(method:str) -> Dict[str,str|bool]:
     ret={}
 
     method_tags=[]
+    ret['method_corrections']=[]
     for comp in components:
         if check_grac(comp):
             ret['do_grac']=True
         elif check_ip_tuning(comp):
             ret['do_ip_tuning']=True
+        elif comp.lower() in ['v','d3bj']:
+            ret['method_corrections']+=[comp.lower()]
         else:
             method_tags.append(comp)
     
@@ -28,7 +31,7 @@ def process_method(method:str) -> Dict[str,str|bool]:
     if len(method_tags)==0:
         raise Exception(f"Cannot process method string {method}, no valid method found")
     elif len(method_tags)==1:
-        ret['method']=method_tags[0]
+        ret['method']='-'.join([method_tags[0]]+ret.pop('method_corrections'))
     else:
         raise Exception(f"Cannot process method string {method}, multiple method tags found: {method_tags}")
     return ret

@@ -54,7 +54,6 @@ def update_storage(
         return res
     
     entries=loop(kwargs)
-    print(entries)
 
     lines+=[
         f"try:",]+[
