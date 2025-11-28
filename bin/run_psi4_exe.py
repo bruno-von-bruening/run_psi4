@@ -8,6 +8,8 @@ import numpy as np
 from run_psi4.main.main import psi4_run, allowed_job_choices
 from run_psi4.util.import_helper import warn, info
 
+GEOM_KEY='geom'
+
 def main():
     description=None
     epilog=None
@@ -17,7 +19,7 @@ def main():
     add('job', help=f"What to do", choices=allowed_job_choices)
 
     # System specification
-    add('--xyz', help=f"xyz_file to process")
+    add(f"--{GEOM_KEY}", help=f"geometry to process (currently only xyz file supported)")
     add('--total_charge', type=int,help=f"Charge of the system", default=0)
     add('--multiplicity', type=int, default=1, help=f"Multiplicity of system spin state")
     add('--ac_shift', type=float, default=None, help=f"AC shift")
@@ -36,8 +38,9 @@ def main():
     add(
         '--memory', type=str, help=f"Memory size (has to end with MB or GB)", default='8GB',
     )
+
     args=par.parse_args()
-    xyz_file    = args.xyz
+    xyz_file    = getattr(args, GEOM_KEY)
     total_charge= args.total_charge
     multiplicity= args.multiplicity
     ac_shift    = args.ac_shift
