@@ -22,7 +22,7 @@ def process_method(method:str) -> Dict[str,str|bool]:
             ret['do_grac']=True
         elif check_ip_tuning(comp):
             ret['do_ip_tuning']=True
-        elif comp.lower() in ['v','d3bj']:
+        elif comp.lower() in ['v','d3bj','a','l']:
             ret['method_corrections']+=[comp.lower()]
         else:
             method_tags.append(comp)
@@ -76,28 +76,27 @@ def set_grac_shift(
 
 def method_setup_lines(method, geom):
 
-    meth_flags=p4ut.get_method_flags(method.method)
+    meth_fl=p4ut.method_types
+    meth=p4ut.get_method_flags(method.method)
+
 
 
     the_options=dict(
         basis=method.basis_set_var,
+        freeze_core=(True, f"Significantly cheaper and little impact on e.g. polarizabilities"),
+        e_convergence=(1.e-6, f"psi4.default"),
+        d_convergence=(1.e-6, f"psi4.default")
     )
 
-    # lines+=[f"psi4.set_options({{",
-    #  f"\"scf_type\": \"df\",",
-    # f"\"e_convergence\": 1e-12,",      # energy convergence
-    # f"\"d_convergence\": 1e-12,",       # density matrix convergence
-    # f"}})"]
-
-    # MP2 related keywords
-    if meth_flags['mp2']:
-        the_options.update( p4ut.make_mp2_options() )
-    elif meth_flags['cc']:
-        the_options.update( p4ut.make_cc_options() )
-    elif meth_flags['hf']:
-        the_options.update( p4ut.make_hf_options(open_spin=geom.open_shell) )
+    if meth==p4ut.method_types.MP:      func=p4ut.make_mp_options
+    elif meth==p4ut.method_types.CC:    func=p4ut.make_cc_options
+    elif meth==p4ut.method_types.CI:    func=p4ut.make_ci_options
+    elif meth==p4ut.method_types.HF:    func=p4ut.make_hf_options
+    elif meth==p4ut.method_types.DFT:   func=p4ut.make_dft_options
     else:
-        the_options.update( p4ut.make_dft_options(open_spin=geom.open_shell) )
+        raise ValueError(f"Method {method.method} not recognized!")
+
+    the_options.update( func(), reference=( "'uhf'" if geom.open_shell else "'rhf'") )
 
     if method.do_ip_tuning:
         the_options.update(dict(
@@ -110,25 +109,39 @@ def method_setup_lines(method, geom):
 
     # Print the options into the file
     indent=4*' '
+    def form(v):
+        def main_form(v):
+            return v.strip('{}') if isinstance(v,str) else str(v)
+        if isinstance(v,tuple):
+            return ( main_form(v[0]), ' # '+v[1] )
+        else:
+            return ( main_form(v), '' )
+
+
     options_set=[ 
-        "{indent}{k:<15} : {v:<15} ,".format(
-            indent=indent, k='\''+k+'\'', v=v.strip('{}')
+        "{}{:<15} = {:<15},{}".format(
+            indent, k.strip(), *form(v) 
         ) 
         for k,v in the_options.items() 
     ]
     # also print the options into the psi4 output 
-    options_printout=[
-        f"print_out(\"{indent}{k}={{}}\\n\".format({v}))" for k,v in the_options.items()
+    # options_printout=[
+    #     f"print_out(\"{indent}{k}={{}}\\n\".format({v}))" for k,v in the_options.items()
+    # ]
+    info_lines=[f"# Information about the settings printed to output file", 
+                f"print_out(f\"INFORMATION about SET METHOD\\n\")",
+                f"print_out('\\n'.join([f\"{indent}{{k}}={{v}}\\n\" for k,v in opts.items()])) ",
     ]
-    info_lines=[f"# Information about the settings printed to output file", f"print_out(f\"INFORMATION about SET METHOD\\n\")"]
-    info_lines+=options_printout
+    #info_lines+=options_printout
 
     # Create the whole section
     method_setup_lines=[
         '# Setting the options for the calculation',
         'clean_options() # Set options to default (avoid bad surprises)',
-        "set_options({"] + options_set + ["})"]
-    
+        "opts=dict("] + options_set + [")",
+        "set_options(opts)",
+    ]
+
     return method_setup_lines+info_lines
 
 class psi4_method(myBaseModel):

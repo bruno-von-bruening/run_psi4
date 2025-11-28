@@ -96,7 +96,8 @@ def psi4_input_single(
 
     # Creation of the molecul, jobname=Nonee
     geom=job.geom
-    molecule_lines, monomer_string=geom.molecule_lines(job.var_names.molecule_name)
+    molecule_lines, monomer_string=geom.molecule_lines(job.var_names.molecule_name, 
+        symm=True if not job.jobtag in [job._available_job_tags.OPT, job._available_job_tags.POLARIZ_FF] else False )
     job.var_names.molecule_string=monomer_string
 
     method_section_lines=method_section(job)

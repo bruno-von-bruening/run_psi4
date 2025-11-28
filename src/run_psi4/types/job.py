@@ -19,8 +19,14 @@ class file_names(BaseModel):
     input: str | None=None # The input file name
     fchk: str|None=None
 
+class job_tags(str, Enum):
+    POLARIZ = 'POLARIZ'
+    SP = 'SP'
+    POLARIZ_FF = 'POLARIZ_FF'
+    OPT = 'OPT'
+
 class psi4_job(myBaseModel):
-    jobtag : str
+    jobtag : job_tags
     jobname : str|None=None
     add_method_tags : bool = True
     
@@ -36,11 +42,12 @@ class psi4_job(myBaseModel):
     var_names : variable_names = variable_names()
     files : file_names = file_names()
     
+    _available_job_tags= job_tags
     __job_mapper__=dict(
-            polarizabilities='POLARIZ',
-            single_point='SP',
-            polarizability_finite_field='POLARIZ_FF',
-            optimization='OPT',
+            polarizabilities=job_tags.POLARIZ,
+            single_point=job_tags.SP,
+            polarizability_finite_field=job_tags.POLARIZ_FF,
+            optimization=job_tags.OPT,
     )
     @classmethod
     def escape(cls,x):

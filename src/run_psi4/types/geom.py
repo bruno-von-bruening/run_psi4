@@ -2,7 +2,7 @@ from . import *
 
 from qcp_objects.objects.properties import geometry
 
-def psi4_molecule_string(atom_types, coordinates, units=None, total_charge=0, multiplicity=1):
+def psi4_molecule_string(atom_types, coordinates, units=None, total_charge=0, multiplicity=1, symm:bool=False):
 
     if isinstance(units, type(None)):
         units={'LENGTH':'BOHR'}
@@ -24,8 +24,9 @@ def psi4_molecule_string(atom_types, coordinates, units=None, total_charge=0, mu
     content+=geometry
 
 
+    if not symm:
+        content+=[ f"symmetry c1"]
     content+=[
-        'Symmetry C1',
         'nocom',
         'noreorient',
         f"units {''.join(list(units.values()))}"
@@ -38,11 +39,13 @@ class geometry(geometry):
         if self.charge is None: raise Exception(f"Specify total charge (for safety)")
         if self.multiplicity is None: raise Exception(f"Specify multiplicity (for safety)")
     @val_call
-    def molecule_lines(self, molecule_name:str) -> Tuple[List[str],str]:
+    def molecule_lines(self, molecule_name:str, symm:bool=False) -> Tuple[List[str],str]:
         self.units.LENGTH='ANGSTROM' # Import so that coordinates are returned in angstroms!
         mol_string=f"monomer_string"
         molecule_str='\n'.join([4*' '+x for x in psi4_molecule_string(
-            atom_types=self.atom_types, coordinates=self.coordinates, total_charge=self.charge, multiplicity=self.multiplicity, units={'LENGTH':'ANGSTROM'}).split('\n') ])
+            atom_types=self.atom_types, coordinates=self.coordinates, total_charge=self.charge, multiplicity=self.multiplicity,
+              units={'LENGTH':'ANGSTROM'}, symm=symm).split('\n') ],
+        )
         assert molecule_name!='', "Provide a valid molecule name! (molecule name is empty)"
         molecule_lines=[ f"#Define the molecule (definition in molecule string has the advantage of being able to create new molecules reliable)",
             f"{mol_string}=\"\"\"\n{molecule_str}\n\"\"\"", f"{molecule_name}=Molecule.from_string(monomer_string)"]

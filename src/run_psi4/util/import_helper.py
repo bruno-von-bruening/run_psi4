@@ -10,6 +10,7 @@ from qcp_global_utils.pydantic.pydantic import pdtc_file, pdtc_directory, myBase
 
 # Data validation
 from typing import Annotated, List, Union, Tuple,Dict
+from enum import Enum
 from pydantic import (
     BeforeValidator, 
     validate_call, 

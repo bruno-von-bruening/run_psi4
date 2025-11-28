@@ -67,11 +67,16 @@ def update_storage(
 
 
 @val_call
-def store_timing(job:psi4_job, key:str, start:str):
+def store_timing(job:psi4_job, key:str, start:str, add:bool=False):
     lines=[
-        f"try:",
-        ind+f"{job.var_names.storage}['about_the_run']['timings'].update({{ \'{key}\':time.time()-{start} }})",
-        f"except Exception as ex:",
-        ind+f"print_out(f\"WARNING: could not save timing for \'{key}\'\")",
+        "try:",
+        ind+(
+            f"{job.var_names.storage}['about_the_run']['timings']['{key}'] = "
+            f"{job.var_names.storage}['about_the_run']['timings'].get('{key}', 0) + (time.time()-{start})"
+            if add else
+            f"{job.var_names.storage}['about_the_run']['timings'].update({{ '{key}': time.time()-{start} }})"
+        ),
+        "except Exception as ex:",
+        ind+f"print_out(f\"WARNING: could not save timing for '{key}': {{ex}}\")",
     ]
     return lines

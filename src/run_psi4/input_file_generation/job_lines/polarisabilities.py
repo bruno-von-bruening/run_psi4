@@ -45,6 +45,8 @@ def get_polarizability(job:psi4_job):
     #"})",
     #"print(method, monomer, props)",
     f"E, wfn = properties(method, molecule={job.var_names.molecule_name}, properties= props, return_wfn=True)",
+    f"alpha = wfn.variable('CCSD DIPOLE POLARIZABILITY')",
+    f"quit()",
     ]
 
     # Get the polarisabilities
@@ -57,6 +59,9 @@ def get_polarizability(job:psi4_job):
             'dipole':'DIPOLE POLARIZABILITY',
             'quadrupole':'QUADRUPOLE POLARIZABILITY'
         }}
+        if any( method.lower().startswith(x) for x in [ 'cc','mp'] ): key_per_rank=dict(
+        (k,method.upper()+' '+v) for k,v in key_per_rank.items()
+        )
         # Construct all expected subindices
         def make_product(the_list):
         \tnew_list=[]
@@ -77,7 +82,7 @@ def get_polarizability(job:psi4_job):
         \tcovered_keys=dict([(x,False) for x in available_keys ])
         \tfor index in expected_subindices[rank]:
             \t\tfull_index=' '.join([rank_key,index.upper()])
-            \t\tassert full_index in available_keys, [index, available_keys]
+            \t\tassert full_index in available_keys, [index, available_keys, rank_key, the_variables.keys()]
             \t\t# Mark the index as covered
             \t\tassert not covered_keys[full_index], f"Double read in of {{full_index}}?"
             \t\tcovered_keys[full_index]=True
