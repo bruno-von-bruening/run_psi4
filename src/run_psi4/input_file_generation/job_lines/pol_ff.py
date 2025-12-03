@@ -55,8 +55,9 @@ def generate_pol_ff_job_lines(job:psi4_job)->lis:
     """
     lines=[]
     lines+=[
-        f"set_options(dict( e_convergence=1.e-2 )) # Should be probably a bit tighter for finite field (possibly its even faster do to better guess?)"
+        f"set_options(dict( e_convergence=1.e-12 )) # For HF reference calculation as I understand. Should be probably a bit tighter for finite field (possibly its even faster do to better guess?)"
     ]
+    # +( [] if not job.method.lower().startswith('cc') else [ f"set_options(dict( cc_convergence=1.e-12 ) )" ]
 
     function_lines=make_functions(job)
     lines+=function_lines
@@ -110,7 +111,8 @@ def generate_pol_ff_job_lines(job:psi4_job)->lis:
         f"",
         f"# Tune potentials (give finite difference value)",
         f"{get_var('pot_registry')}.update( zero=None )", # Define zero potential
-        f"delta={1.e-4:E}",
+        f"delta_dip={1.e-4:E}",
+        f"delta_qad={1.e-5:E}",
         f"",
         f"{get_var('ff_reg')}=dict()",
         f"E,wfn,grad,mom= get_moments( {get_var('pot_registry')}['zero'], 0 )",
@@ -121,6 +123,7 @@ def generate_pol_ff_job_lines(job:psi4_job)->lis:
         f"{job.var_names.storage}[\'files\'].update({{ \'final_fchk\':fchk_file}})",
         f"{job.var_names.storage}[\'results\'].update({{ \'energy\': E, \'gradient\': (grad.to_array().tolist() if grad is not None else None) }})",
         f"for t in tensor_elements:",
+        ind+f"delta= (delta_dip if len(t)==1 else delta_qad)",
         ind+f"for x in [ -1 , 1 ]: # negative and positive field",
         ind+ind+f"E,wfn,grad,mom= get_moments( {get_var('pot_registry')}[t] , x*delta, ",
         ind+ind+ind+f"do_mom=True if x>0 else False ) # only do moments for positive field (negative is for energy derviation) ",
@@ -138,11 +141,13 @@ def generate_pol_ff_job_lines(job:psi4_job)->lis:
         ind+f"first,second, third= {get_var('ff_reg')}[t+'_pos'], {get_var('ff_reg')}['zero'], {get_var('ff_reg')}[t+'_neg']",
         ind+f"print_out(f\"E={{first['E']}} , E0={{second['E']}} for tag={{t}} and delta={{delta}}\\n\")",
         ind+f"cur_pol=dict()",
+        ind+f"delta = (first['delta'] - second['delta'] )",
         ind+f"mapper=dict( (k,i) for i,k in enumerate(['x','y','z']) )",
-        ind+f"pol_through_energy[f\"{{t}}@{{t}}\"]=(first['E']-2*second['E']+third['E'])/(delta**2)",
+        ind+f"pol_through_energy[f\"{{t}}@{{t}}\"]=float(-(first['E']-2*second['E']+third['E'])/(delta**2) \ # FD formula (polarisabilities are positive by convention)",
+        ind+ind+f"*( 1/2 if len(t)==2 else 1) ) # Do not know where this comes from (convention in psi4?)",
         ind+f"for k in set(list(first['mom'].keys())+list(second['mom'].keys()) ):",
         ind+ind+f"assert k in first['mom'].keys() and k in second['mom'].keys()",
-        ind+ind+f"ff_mom=( first['mom'][k] - second['mom'][k]) / (first['delta'] - second['delta'] )",
+        ind+ind+f"ff_mom=( first['mom'][k] - second['mom'][k]) / delta",
         ind+ind+f"cur_pol.update({{ k:  np.array(ff_mom).tolist() }})",
         ind+f"{get_var('pol_reg')}.update({{ t : cur_pol }})",
     ]
