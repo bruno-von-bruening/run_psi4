@@ -28,15 +28,25 @@ def machine_settings_wrapper(v):
 class machine_settings(BaseModel):
     num_threads     : int = 4    
     memory          : str = '4GB'
-    @property
-    def memory_gb(self):
-        try:
-            float(self.memory)
-            self.memory=f"{self.memory.strip()}GB"
-        except:
-            assert any([ self.memory.upper().endswith(x) for x in ['MB','GB'] ]), f"wrong memory {self.memory}"
     @val_call
     def hardware_lines(self, storage_var:str):
         return set_hardware(memory=self.memory, num_threads=self.num_threads, storage_var=storage_var).split('\n')
+    def __init__(self, **kwargs):
+        if 'memory' in kwargs.keys():
+            mem=kwargs['memory']
+            try:
+                float(mem)
+                mem=f"{mem.strip()}GB"
+            except:
+                assert any([ mem.upper().endswith(x) for x in ['MB','GB'] ]), f"wrong memory {mem}"
+                number=mem.upper().removesuffix('GB').removesuffix('MB').rstrip('_')
+                try:
+                    float(number)
+                except:
+                    raise Exception(f"wrong memory {mem}. Not a number: {number}")
+                mem=f"{number} {mem[-2:].upper()}"
+            kwargs['memory']=mem
+        super().__init__(**kwargs)
+
 
 my_machine_settings=Annotated[machine_settings, BeforeValidator(machine_settings_wrapper)]
