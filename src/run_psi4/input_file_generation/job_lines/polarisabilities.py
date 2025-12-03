@@ -2,6 +2,10 @@ from . import *
 
 from run_psi4.types.job import psi4_job
 
+from .pol_ff_functions import (
+    store
+)
+
 def get_polarizability(job:psi4_job):
     """ Given a geometry calculate the Polarisabilities available in Psi4
     [ ] Provide starting guess (idk if that will be that much faster though)
@@ -45,12 +49,12 @@ def get_polarizability(job:psi4_job):
     #"})",
     #"print(method, monomer, props)",
     f"E, wfn = properties(method, molecule={job.var_names.molecule_name}, properties= props, return_wfn=True)",
-    f"alpha = wfn.variable('CCSD DIPOLE POLARIZABILITY')",
-    f"quit()",
+    # f"alpha = wfn.variable('CCSD DIPOLE POLARIZABILITY')",
+    # f"quit()",
     ]
 
     # Get the polarisabilities
-    def recover_polarisabilities(origin, type_of_origin=None, units_of_origin=None):
+    def recover_polarisabilities(origin, the_var:str, type_of_origin=None, units_of_origin=None):
         recover_polarisabilities=f"""
         #### Recover the polarisabilities saved in the global variables
         # Manipulate the 'variables' variable where polarisabilities are stored
@@ -69,41 +73,57 @@ def get_polarizability(job:psi4_job):
             \t\tfor y in the_list:
             \t\t\tnew_list.append(x+y)
         \treturn new_list
-        expected_subindices={{
-            'dipole':make_product(['x','y','z']),
-            'quadrupole':make_product(['xx','yy','zz','xz','xy','yz']),
-        }}
+        dip_entries=['x','y','z']
+        quad_entries=['xx','yy','zz','xy','xz','yz']
+        expected_subindices=[]
+        for x in [dip_entries, quad_entries]:
+            \texpected_subindices+=[
+            \t\t  (a,b) for a in x for b in x
+            \t]
+        covered_keys=dict( (k,False) for k in expected_subindices )
+        {the_var}=dict()
+        for a,b in expected_subindices:
+            \t#full_index=' '.join([rank_key,index.upper()])
+            \t#assert full_index in available_keys, [index, available_keys, rank_key, the_variables.keys()]
+            \tfull_index=' '.join([key_per_rank['dipole' if len(a)==1 else 'quadrupole'].upper(), a.upper()+b.upper()])
+            \t# Mark the index as covered
+            \tassert not covered_keys[(a,b)], f"Double read in of {{full_index}}?"
+            \tcovered_keys[(a,b)]=True
+            \t# Safe the index and value into the tensor
+            \tvalue=the_variables[full_index]
+            \t#value=0 if abs(value)<zero_thres else value
+            \t{the_var}.update({{f"{{a}}@{{b}}":value}})
+        assert all(covered_keys.values())"""
+        return [x.lstrip(" ") for x in recover_polarisabilities.split('\n')]
 
-        polarisability_tensors={{}}
-        zero_thres=1.e-12
-        for rank, rank_key in key_per_rank.items():
-        \ttensor={{}}
-        \tavailable_keys=[x for x in the_variables.keys() if x.startswith(rank_key)]
-        \tcovered_keys=dict([(x,False) for x in available_keys ])
-        \tfor index in expected_subindices[rank]:
-            \t\tfull_index=' '.join([rank_key,index.upper()])
-            \t\tassert full_index in available_keys, [index, available_keys, rank_key, the_variables.keys()]
-            \t\t# Mark the index as covered
-            \t\tassert not covered_keys[full_index], f"Double read in of {{full_index}}?"
-            \t\tcovered_keys[full_index]=True
-            \t\t# Safe the index and value into the tensor
-            \t\tvalue=the_variables[full_index]
-            \t\tvalue=0 if abs(value)<zero_thres else value
-            \t\ttensor.update({{index:value}})
-        \tpolarisability_tensors.update({{rank:tensor}})
-        \tassert all(covered_keys.values())
+    #for rank, rank_key in key_per_rank.items():
+    #\ttensor={{}}
+    #\tavailable_keys=[x for x in the_variables.keys() if x.startswith(rank_key)]
+    #\tcovered_keys=dict([(x,False) for x in available_keys ])
+    #\tfor index in expected_subindices[rank]:
+    #    \t\tfull_index=' '.join([rank_key,index.upper()])
+    #    \t\tassert full_index in available_keys, [index, available_keys, rank_key, the_variables.keys()]
+    #    \t\t# Mark the index as covered
+    #    \t\tassert not covered_keys[full_index], f"Double read in of {{full_index}}?"
+    #    \t\tcovered_keys[full_index]=True
+    #    \t\t# Safe the index and value into the tensor
+    #    \t\tvalue=the_variables[full_index]
+    #    \t\tvalue=0 if abs(value)<zero_thres else value
+    #    \t\ttensor.update({{index:value}})
+    #\t{the_var}.update({{rank:tensor}})
+    #\tassert all(covered_keys.values())
 
-        # Drop to file
-        polarisability_tensors.update({{ 'origin': {{'coordinate':{COM}, 'type_of_origin':\'{type_of_origin}\', 'units_of_origin':\'{units_of_origin}\' }}}})
-        polarizability_file='polarisability_tensors.yaml'
-        with open(polarizability_file,'w') as wr:
-          \tyaml.dump(polarisability_tensors, wr)
-        {job.var_names.storage}['files'].update({{'polarizability_tensors':polarizability_file}})
-        """
-        ind=4*' '
-        recover_polarisabilities=[x.strip(' ') for x in recover_polarisabilities.split('\n')]
-        return recover_polarisabilities
-        # Sorting according to stones convention (See Cartesian–Spherical Conversion Tables@Stone's Theory of Intermolecular Interactions book)
+#         # Drop to file
+#         polarisability_tensors.update({{ 'origin': {{'coordinate':{COM}, 'type_of_origin':\'{type_of_origin}\', 'units_of_origin':\'{units_of_origin}\' }}}})
+#         polarizability_file='polarisability_tensors.yaml'
+#         with open(polarizability_file,'w') as wr:
+#           \tyaml.dump(polarisability_tensors, wr)
+#         {job.var_names.storage}['files'].update({{'polarizability_tensors':polarizability_file}})
+#         """
+#         ind=4*' '
+#         recover_polarisabilities=[x.strip(' ') for x in recover_polarisabilities.split('\n')]
+#         return recover_polarisabilities
+#         # Sorting according to stones convention (See Cartesian–Spherical Conversion Tables@Stone's Theory of Intermolecular Interactions book)
 
     define_polarisability_origin=[x.strip() for x in f"""
     # Define center of mass (in angstrom!) and assert that it has been read in correctly!
@@ -114,6 +134,7 @@ def get_polarizability(job:psi4_job):
     lines=(        []
         + define_polarisability_origin
         + property_calculation
-        + recover_polarisabilities(COM, type_of_origin='COM',units_of_origin=units_of_origin)
+        + recover_polarisabilities(COM, 'pol_linresp',type_of_origin='COM',units_of_origin=units_of_origin)
+        + store(job, 'polarisabilities_linear_response', 'pol_linresp')
     )
     return lines

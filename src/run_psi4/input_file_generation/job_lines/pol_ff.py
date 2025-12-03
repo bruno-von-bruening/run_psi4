@@ -4,7 +4,7 @@ from run_psi4.types.job import psi4_job
 
 from .pol_ff_functions import (
     meassure_multipoles_func, get_moment_function, make_external_field, pol_transform,
-    tensor_tag_from_indices, tag_matrix
+    tensor_tag_from_indices, tag_matrix, make_moments
 )
 
 lis=List[str]
@@ -23,8 +23,9 @@ def make_functions(job:psi4_job):
 
     return lines
 
+
 @val_call
-def gather_polarisabilities(job:psi4_job) -> lis:
+def gather_polarisabilities(job:psi4_job, target_var:str) -> lis:
     lines=[]
 
     do_print=True
@@ -39,10 +40,8 @@ def gather_polarisabilities(job:psi4_job) -> lis:
         ]
     
     # Save
-    storage_var=job.var_names.storage
     lines+=[
-        f"pol_trans=pol_transform({get_var('pol_reg')})",
-        f"{storage_var}.update( pol_ff = pol_trans)"
+        f"{target_var}=pol_transform({get_var('pol_reg')})",
     ]
     return lines
 
@@ -144,7 +143,7 @@ def generate_pol_ff_job_lines(job:psi4_job)->lis:
         ind+f"delta = (first['delta'] - second['delta'] )",
         ind+f"mapper=dict( (k,i) for i,k in enumerate(['x','y','z']) )",
         ind+f"pol_through_energy[f\"{{t}}@{{t}}\"]=float(-(first['E']-2*second['E']+third['E'])/(delta**2) \ # FD formula (polarisabilities are positive by convention)",
-        ind+ind+f"*( 1/2 if len(t)==2 else 1) ) # Do not know where this comes from (convention in psi4?)",
+        ind+ind+f"*( 1/2 if len(t)==2 else 1) ) # Induction Energy",
         ind+f"for k in set(list(first['mom'].keys())+list(second['mom'].keys()) ):",
         ind+ind+f"assert k in first['mom'].keys() and k in second['mom'].keys()",
         ind+ind+f"ff_mom=( first['mom'][k] - second['mom'][k]) / delta",
@@ -152,20 +151,17 @@ def generate_pol_ff_job_lines(job:psi4_job)->lis:
         ind+f"{get_var('pol_reg')}.update({{ t : cur_pol }})",
     ]
 
+
     lines+=[
         f"",
         f"# Gather and reform polarisabilities",
-    ]+gather_polarisabilities(job)+[
-        f"{job.var_names.storage}['results'].update( pol_ff_through_energy = pol_through_energy )",
-    ]
+    ]+gather_polarisabilities(job, "pol_vals")
+    
 
-    lines+=[
-        f"# Store molecular Multipoles",
-        f"moms={{}}",
-        f"for k,v in {get_var('ff_reg')}['zero']['mom'].items():",
-        f"    moms.update({str(tag_matrix.__name__)}(v))",
-        f"{job.var_names.storage}['results'].update( multipoles = moms )",
-    ]
+    lines+=make_moments(f"{get_var('ff_reg')}['zero']['mom']",'moms')
+
+    lines+=[f"#Store object"] + store(job, 'pol_ff', 'pol_vals')+store(job, 'pol_ff_through_energy', 'pol_through_energy') + \
+        store(job, 'multipoles', 'moms')
 
     return lines
 

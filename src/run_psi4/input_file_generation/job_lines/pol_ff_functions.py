@@ -1,5 +1,7 @@
 from . import *
 
+from run_psi4.types.job import psi4_job
+
 # def make_multipolar_field():
 def center_of_charge_function():
     """ Return the function name and lines defining it
@@ -360,3 +362,16 @@ def pol_transform(pols):
                 if kk in new_pols.keys(): raise Exception(f"Already defined: \'{k}\'")
                 else: new_pols.update({kk:vv})
     return new_pols
+
+def make_moments(source,the_var):
+    return [
+        f"# Get Multipoles from zero field calculation",
+        f"{the_var}={{}}",
+        f"for k,v in {source}.items():",
+        f"    {the_var}.update({str(tag_matrix.__name__)}(v))",
+    ]
+
+@val_call
+def store(job:psi4_job, key:str, target_var:str):
+    storage_var=job.var_names.storage
+    return [ f"{storage_var}['results'][\'{{}}\'] = {target_var}".format(key.strip('\'"')) ]
