@@ -10,26 +10,26 @@ class method_types(str,Enum):
     DFT = 'dft'
     CI = 'ci'
 
-def make_mp_options(use_df:bool=True, unrestricted:bool=False):
+def make_mp_options(use_df:bool=True):
     """ DF-MP settings as of Psi4"""
     return dict(
         mp_type="'df'" if use_df else "'conv'",
     )
-def make_cc_options(use_df:bool=True, unrestricted:bool=False):
+def make_cc_options(use_df:bool=True):
     """ DF-MP2 settings as of Psi4"""
     return dict(
         cc_type="'df'" if use_df else "'conv'",
     )
-def make_hf_options(use_df:bool=True, unrestricted:bool=False       ):
+def make_hf_options(use_df:bool=True):
     """ DF-MP2 settings as of Psi4"""
     # https://psicode.org/psi4manual/1.9.x/scf.html
     return dict(
-        scf_type="'df'" if use_df else "'direct'",
+        scf_type="'df'" if use_df else "'pk'",
     )
-def make_dft_options(unrestricted:bool=False, use_df:bool=True):
+def make_dft_options(open_spin:bool=False, use_df:bool=True):
     """ DF-MP2 settings as of Psi4"""
     return dict(
-        scf_type="'df'" if use_df else "'direct'",
+        scf_type="'df'" if use_df else "'pk'",
     )
 def make_ci_options():
     """ CI settings as of Psi4"""
