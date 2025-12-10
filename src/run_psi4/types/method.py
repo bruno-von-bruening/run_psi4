@@ -192,8 +192,10 @@ class psi4_method(psi4_method):
     unrestricted : bool = False
     @property
     def can_do_gradient(self)->bool:
-        return False if (
-            re.match(r"cc.*\(.*\)", self.method.lower()) and not self.use_df
+        forbidden=[ "cc.*\(.*\)", "mp[2-9]" ]
+        return False if any(
+            re.match(x, self.method.lower()) and not self.use_df
+            for x in forbidden
         ) else True
     @val_call
     def method_definitions(self, storage_var:str) -> List[str]:
