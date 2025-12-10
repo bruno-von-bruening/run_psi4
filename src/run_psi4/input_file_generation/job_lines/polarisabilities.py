@@ -1,10 +1,7 @@
 from . import *
 
-from run_psi4.types.job import psi4_job
+from run_psi4.types.job import psi4_job, store
 
-from .pol_ff_functions import (
-    store
-)
 
 def get_polarizability(job:psi4_job):
     """ Given a geometry calculate the Polarisabilities available in Psi4
@@ -125,9 +122,19 @@ def get_polarizability(job:psi4_job):
 #         return recover_polarisabilities
 #         # Sorting according to stones convention (See Cartesian–Spherical Conversion Tables@Stone's Theory of Intermolecular Interactions book)
 
-    define_polarisability_origin=[x.strip() for x in f"""
+    from .pol_ff_functions import center_of_charge_function
+    # Get center of charge to define multipoles around
+    func_name, new_lines = center_of_charge_function()
+    lines+=new_lines
+    center_of_charge_var='center_of_charge'
+    var_mem.update({'center_of_charge':center_of_charge_var})
+    lines+=[
+        f"{get_var('center_of_charge')} = {func_name}({job.var_names.molecule_name})",
+    ]
+    define_polarisability_origin=new_lines +[x.strip() for x in f"""
     # Define center of mass (in angstrom!) and assert that it has been read in correctly!
-    core.set_global_option("PROPERTIES_ORIGIN", {COM})
+
+    core.set_global_option("PROPERTIES_ORIGIN", {get_var('center_of_charge')})
     assert {COM}==get_option('None','PROPERTIES_ORIGIN'), 'Check Center of mass'
     """.split('\n')]
     # Pierce file together

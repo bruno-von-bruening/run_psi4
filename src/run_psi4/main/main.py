@@ -37,7 +37,11 @@ def psi4_run(
     input_file_name=None,
     do_test=False,
     machine_settings : my_machine_settings = machine_settings(),
-    add_method_tags : bool = True
+    add_method_tags : bool = True,
+    do_mom: bool = True,
+    freeze_core: bool = True,
+    use_df: bool = True,
+    unrestricted: bool = False,
 ) -> List[Tuple[str,str]]:
 
     input_and_storage_files=[]
@@ -68,11 +72,11 @@ def psi4_run(
                 the_job=psi4_job(
                     jobtag=jobtag,
                     geom=geom,
-                    method_tag=f,
-                    basis_set=b,
+                    method=dict(method_tag=f, freeze_core=freeze_core, use_df=use_df,basis_set=b, unrestricted=unrestricted),
                     execute=execute,
                     executable=executable,
                     machine_settings=machine_settings,
+                    do_moments=do_mom,
                 )
                 the_job = psi4_input_single(
                     the_job

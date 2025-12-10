@@ -1,7 +1,7 @@
 from . import *
 from .utils import *
 
-from run_psi4.types.job import psi4_job
+from run_psi4.types.job import psi4_job, store
 from .storage import make_storage_variable, dump_storage, store_timing
 from .job_lines.sinple_point import get_single_point
 from .job_lines.polarisabilities import get_polarizability
@@ -32,31 +32,22 @@ def make_preamble(job: psi4_job):
     storage_lines=make_storage_variable(
         job    
     )
+    
+    dump_storage_var='dump_storage'
+    storage_lines+=[
+        f"def {dump_storage_var}():",
+        *[ ind+x for x in dump_storage(job.var_names.storage, job.var_names.storage_file_name)], 
+    ]
+
 
 
     hardware_lines=job.machine_settings.hardware_lines(storage_var=job.var_names.storage)
 
     preamble=header+['']+imports+['']+storage_lines+['']+hardware_lines
 
-    return preamble
+    return preamble, dump_storage_var
 
-@val_call
-def method_section(job:psi4_job) -> List[str]:
-    method=job.method
-    method_definition=method.method_definitions(job.var_names.storage, job.basis_set)
-
-    if method.do_grac:
-        grac_lines=method.make_grac_lines(molecule_name=job.var_names.molecule_name, molecule_string=job.var_names.molecule_string)
-    else: grac_lines=[]
-
-    if method.do_ip_tuning:
-        ip_tune_string = method.get_ip_tuned_omega(storage_var=job.var_names.storage)
-    else: ip_tune_string=[]
-
-    method_lines=method_definition + ip_tune_string + grac_lines
-
-    method_lines+=method.method_setting_lines(job.geom)
-    return method_lines
+from .job_lines.pol_ff_functions import store
 
 class JobTagMapper:
     POLARIZ = 'POLARIZ'
@@ -91,7 +82,7 @@ def psi4_input_single(
 ):
     """ Create an single psi4 input file """
 
-    preamble=make_preamble(job)
+    preamble, dump_storage_var=make_preamble(job)
 
 
     # Creation of the molecul, jobname=Nonee
@@ -100,7 +91,7 @@ def psi4_input_single(
         symm=True if not job.jobtag in [job._available_job_tags.OPT, job._available_job_tags.POLARIZ_FF] else False )
     job.var_names.molecule_string=monomer_string
 
-    method_section_lines=method_section(job)
+    method_section_lines=job.method_lines()
 
 
     # Get the job
@@ -110,28 +101,49 @@ def psi4_input_single(
 
     if unique_tag == JobTagMapper.POLARIZ:
         job_lines = get_polarizability(job)
+        func_lines=[]
     elif unique_tag == JobTagMapper.SP:
         job_lines = get_single_point(job)
+        func_lines=[]
     elif unique_tag == JobTagMapper.POLARIZ_FF:
-        job_lines = generate_pol_ff_job_lines(job)
+        from .job_lines.pol_ff import options
+        opts=options(do_moments=job.do_moments)
+        job_lines, func_lines = generate_pol_ff_job_lines(job, opts )
     elif unique_tag == JobTagMapper.OPT:
         job_lines = optimization(job)
+        func_lines=[]
     else:
         raise Exception(f"Job tag not handled yet: {unique_tag}")
 
     job_lines = [
         '# Starting job',
-        f"start_{unique_tag.lower()}=time.time()",
-        *job_lines,
-        *store_timing(job,f"Total Time for {unique_tag}", f"start_{unique_tag.lower()}"),
+        f"def run_job():",
+        *[ind+x for x in job_lines],
+        f"",
+        f"# Execute the job",
+        f"try:",
+        ind+f"start_{unique_tag.lower()}=time.time()",
+        ind+f"run_job()",
+        *[ ind+x for x in store(job,('about_the_run','timings',f"Total Time for {unique_tag}"), f"start_{unique_tag.lower()}-time.time()")],
+        f"except KeyboardInterrupt as ex: # if a worker is killed then clean up the scratch!",
+        ind+f"clean(); raise KeyboardInterrupt()",
+    ]
+
+    final_lines=[
+        f"# Dump storage at the end of the run",
+        f"try:",
+        ind+f"{dump_storage_var}()",
+        f"except Exception as ex: raise Exception(f\"Could not dump storage: {{ex}}\")",
+        f"finally: clean()"
     ]
 
     content= [  *preamble, '',
                 *molecule_lines, '',
+                '#### FUNCTIONS (could be moved to other file but this way its implicity portable [no need to copy multiple files])',
+                *func_lines, '#### END FUNCTIONS', '',
                 *method_section_lines, '',
                 *job_lines, '',
-                *dump_storage(job.var_names.storage, job.var_names.storage_file_name), '',
-                f'clean()'
+                *final_lines,
     ]
 
     for x in content:

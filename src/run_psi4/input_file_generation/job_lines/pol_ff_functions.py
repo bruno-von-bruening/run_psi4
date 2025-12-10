@@ -1,6 +1,6 @@
 from . import *
 
-from run_psi4.types.job import psi4_job
+from run_psi4.types.job import psi4_job, store
 
 # def make_multipolar_field():
 def center_of_charge_function():
@@ -8,13 +8,14 @@ def center_of_charge_function():
     The function computes the center of charge of a molecule
     """
     lines=[]
+    func_name='get_center_of_charge'
     lines+=[
-        f"def center_of_charge(mol):",
+        f"def {func_name}(mol):",
         ind+f"coords=mol.full_geometry().to_array()",
         ind+f"center=np.sum([ mol.Z(i)/np.sum([mol.Z(i) for i in range(len(coords))]) * c for i,c in enumerate(coords) ] ,axis=0)",
         ind+f"return center",
     ]
-    return 'center_of_charge', lines
+    return func_name, lines
 
 # @val_call
 # def make_external_field(key, center, d) -> Tuple[str,List[str]]:
@@ -370,8 +371,3 @@ def make_moments(source,the_var):
         f"for k,v in {source}.items():",
         f"    {the_var}.update({str(tag_matrix.__name__)}(v))",
     ]
-
-@val_call
-def store(job:psi4_job, key:str, target_var:str):
-    storage_var=job.var_names.storage
-    return [ f"{storage_var}['results'][\'{{}}\'] = {target_var}".format(key.strip('\'"')) ]

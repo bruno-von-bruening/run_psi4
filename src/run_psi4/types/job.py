@@ -3,12 +3,6 @@ from .geom import geometry, geometry_wrapper
 from .machine_settings import machine_settings, my_machine_settings
 from .method import psi4_method
 
-### Make variable file registry
-# class variables(BaseModel):
-#     the_vars: Dict[str,str]
-
-
-
 class variable_names(BaseModel):
     storage: str =f"storage" # internally used variable name
     molecule_name: str = f"the_molecule" # call the two make clear that this is an instance
@@ -31,9 +25,7 @@ class psi4_job(myBaseModel):
     add_method_tags : bool = True
     
     geom : geometry_wrapper
-    method_tag : str
-    basis_set : str
-    method: psi4_method | None=None
+    method: psi4_method 
 
     execute : bool = False
     executable : str|None =None
@@ -41,7 +33,9 @@ class psi4_job(myBaseModel):
 
     var_names : variable_names = variable_names()
     files : file_names = file_names()
-    
+
+    do_moments : bool = True
+
     _available_job_tags= job_tags
     __job_mapper__=dict(
             polarizabilities=job_tags.POLARIZ,
@@ -56,7 +50,7 @@ class psi4_job(myBaseModel):
     def make_job_name(self):
         jobname=f"{os.path.basename(self.geom.ifi).split('.')[0]}"
         if self.add_method_tags:
-            jobname=f"{self.jobtag}_{self.escape(self.method_tag)}_{self.escape(self.basis_set)}_{jobname}"
+            jobname=f"{self.jobtag}_{self.escape(self.method.method_tag)}_{self.escape(self.method.basis_set)}_{jobname}"
         return jobname
     def make_storage_name(self):
         return f"STORAGE_{self.jobname}.yaml"
@@ -77,9 +71,34 @@ class psi4_job(myBaseModel):
         if self.files.input is None:
             self.files.input=f"{self.jobname}.psi4inp"
 
-        if self.method is None:
-            self.method=psi4_method(self.method_tag
-            )
 
 
 allowed_job_choices=list(psi4_job.__job_mapper__.keys())
+
+@val_call
+def store(job:psi4_job,path:tuple, target_var:str, update:bool=False):
+    storage_var=job.var_names.storage
+    the_path=''.join([f"[\'{p}\']" for p in path])
+    return [ f"{storage_var}{the_path}"+
+        ( f"= {target_var}" if not update else
+            f".update({target_var})"
+        ) ]
+
+class psi4_job(psi4_job):
+    def method_lines(self)->List[str]:
+        lines=self.method.method_definitions( storage_var=self.var_names.storage )
+
+        method=self.method
+        if method.do_grac:
+            lines+=method.make_grac_lines(molecule_name=self.var_names.molecule_name, molecule_string=self.var_names.molecule_string)
+
+        if method.do_ip_tuning:
+            lines+= method.get_ip_tuned_omega(storage_var=self.var_names.storage)
+
+        new_lines,opt_var=self.method.method_setting_lines(self.geom, return_opts_var=True)
+        lines+=new_lines+[
+            f"# Store method options",
+            *store( self, ('settings',), opt_var, update=True )
+        ]
+
+        return lines

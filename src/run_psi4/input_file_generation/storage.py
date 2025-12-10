@@ -6,8 +6,9 @@ def make_storage_variable(job:psi4_job) -> List[str]:
     storage_lines=[
         f"# Store variables here (eg IP)",
         f"from collections import defaultdict # allows for creating key paths beyond one level: dic=defaultdict(dict); dic['a']['b']=c", 
-        f"{job.var_names.storage}=defaultdict(dict)",
-        f"{job.var_names.storage}.update( files={{}}, results={{}}, settings={{}}, about_the_run={{ 'timings': {{}} }} )  # optional defaultdict will initialise anyway",
+        f"def nested_dict(): return defaultdict(nested_dict) # Required for arbitrary depth",
+        f"{job.var_names.storage}=defaultdict(nested_dict)",
+        # f"{job.var_names.storage}.update( files={{}}, results={{}}, settings={{}}, about_the_run={{ 'timings': {{}} }} )  # optional defaultdict will initialise anyway",
         f"{job.var_names.storage_file_name}=\'{job.files.storage}\' # will drop here at the end of the run",
     ]
     return storage_lines
@@ -16,12 +17,17 @@ def dump_storage(storage_var, storage_file_var):
     # Storage dump
     storage_drop_lines=[
         f"# Time the complete run",
-        f"{storage_var}['about_the_run']['timings'].update({{ 'total_run_time': time.time()-run_started_at,"+
-            f" 'unaccounted_time': time.time()-run_started_at - sum(list({storage_var}['about_the_run']['timings'].values()))}})",
-        f"# Drop the storage as yaml file",
+        f"{storage_var}['about_the_run']['timings'].update(",
+        ind+f"total_run_time= time.time()-run_started_at",
+        f")",
+        f"# Drop the storage aclean_rec()s yaml file",
+        f"def clean_rec(dic):",
+        ind+f"if isinstance(dic, (defaultdict,dict)):",
+        ind+ind+f"dic = {{k: clean_rec(v) for k,v in dic.items()}}",
+        ind+f"return dic",
         f"def drop_yaml(storage, storage_file):",
         f"    with open(storage_file, 'w') as wr:",
-        f"        yaml.dump({storage_var},wr)",
+        f"        yaml.dump(clean_rec({storage_var}),wr)",
         f"    print(f\"Dropped stored variables under {{storage_file}}\")",
             f"drop_yaml( dict({storage_var}), {storage_file_var})",
         ]

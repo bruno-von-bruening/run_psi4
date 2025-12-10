@@ -39,6 +39,19 @@ def main():
         '--memory', type=str, help=f"Memory size (has to end with MB or GB)", default='8GB',
     )
 
+    add(
+        '--no_mom_ff', action='store_true', help=f"Whether to directly compute and store multipole moments during finite field calculations",
+    )
+    add(
+        '--no_freeze_core','-ncf',action='store_true', help=f"Do not freeze core orbitals in correlated calculations",
+    )
+    add(
+        '--no_df','-ndf',action='store_true', help=f"Do not use density fitting in correlated calculations",
+    )
+    add(
+        '--unrestricted','-ur',action='store_true', help=f"Use unrestricted orbitals for closed shell systems",
+    )
+
     args=par.parse_args()
     xyz_file    = getattr(args, GEOM_KEY)
     total_charge= args.total_charge
@@ -53,6 +66,10 @@ def main():
     do_test     = args.test
     num_threads = args.num_threads
     memory      = args.memory
+    do_mom=not args.no_mom_ff
+    freeze_core=not args.no_freeze_core
+    use_df=not args.no_df
+    unrestricted=args.unrestricted
 
     if total_charge is None:
         warn(f"No total charge provided, assuming neutral system!")
@@ -82,9 +99,12 @@ def main():
         machine_settings=dict(
             num_threads=num_threads,
             memory=memory,
-        )
+        ),
+        do_mom=do_mom,
+        freeze_core=freeze_core,
+        use_df=use_df,
+        unrestricted=unrestricted
     )
-                
 
 if __name__=='__main__':
     main()

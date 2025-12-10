@@ -74,7 +74,7 @@ def set_grac_shift(
         """.split('\n')
     ],grac_var
 
-def method_setup_lines(method, geom):
+def method_setup_lines(method, geom, return_opts_var=False):
 
     meth_fl=p4ut.method_types
     meth=p4ut.get_method_flags(method.method)
@@ -83,9 +83,9 @@ def method_setup_lines(method, geom):
 
     the_options=dict(
         basis=method.basis_set_var,
-        freeze_core=(True, f"Significantly cheaper and little impact on e.g. polarizabilities"),
         e_convergence=(1.e-6, f"psi4.default"),
-        d_convergence=(1.e-6, f"psi4.default")
+        d_convergence=(1.e-6, f"psi4.default"),
+        freeze_core=(method.freeze_core, f"Freeze core is significantly cheaper and little impact on e.g. polarizabilities"),
     )
 
     if meth==p4ut.method_types.MP:      func=p4ut.make_mp_options
@@ -96,7 +96,11 @@ def method_setup_lines(method, geom):
     else:
         raise ValueError(f"Method {method.method} not recognized!")
 
-    the_options.update( func(), reference=( "'uhf'" if geom.open_shell else "'rhf'") )
+    reference=(
+            '\'uhf\'' if (geom.open_shell or method.unrestricted) 
+            else '\'rhf\''
+    )
+    the_options.update( func(use_df=method.use_df), reference=reference )
 
     if method.do_ip_tuning:
         the_options.update(dict(
@@ -137,48 +141,71 @@ def method_setup_lines(method, geom):
     # Create the whole section
     method_setup_lines=[
         '# Setting the options for the calculation',
-        'clean_options() # Set options to default (avoid bad surprises)',
         "opts=dict("] + options_set + [")",
+        'clean_options() # Set options to default (avoid bad surprises)',
         "set_options(opts)",
     ]
 
-    return method_setup_lines+info_lines
+    lines= method_setup_lines+info_lines
+    if return_opts_var:
+        return lines, 'opts'
+    else:
+        return lines
 
 class psi4_method(myBaseModel):
+    method_tag:str
     method: str
+    basis_set: str
+    freeze_core: bool = True
+    use_df: bool = True
     do_ip_tuning: bool = False
     do_grac: bool = False
     def __init__(self, *args, **kwargs):
         if len(args)==0:
-            pass
+            if 'method_tag' in kwargs.keys():
+                new_kwargs=process_method(kwargs['method_tag'])
+            else:
+                new_kwargs={}
         elif len(args)==1:
             new_kwargs=process_method(args[0])
-            for k,v in new_kwargs.items():
-                if k in kwargs:
-                    if kwargs[k]!=v:
-                        warn(f"Conflict in passed arguments to psi4_method: {k} has value {kwargs[k]} from kwargs and {v} from positional argument, will take one from string")
-                    else: pass
-                else:
-                    kwargs[k]=v
+            if 'method_tag' in kwargs.keys():
+                assert kwargs['method_tag']==args[0], f"Conflict in passed method_tag: {kwargs['method_tag']} vs {args[0]}"
+            else:
+                kwargs['method_tag']=args[0]
         else:
             raise Exception(f"Passed more than one positional argument to psi4_method: {args}")
+        for k,v in new_kwargs.items():
+            if k in kwargs:
+                if kwargs[k]!=v:
+                    warn(f"Conflict in passed arguments to psi4_method: {k} has value {kwargs[k]} from kwargs and {v} from positional argument, will take one from string")
+                else: pass
+            else:
+                kwargs[k]=v
         super().__init__(**kwargs)
 class psi4_method(psi4_method):
     func_var: str='method'
     basis_set_var: str='basis_set'
     grac_shift_var: str="grac_shift"
     omega_var: str='omega'
+    freeze_core : bool = True
+    use_df : bool = True
+    unrestricted : bool = False
+    @property
+    def can_do_gradient(self)->bool:
+        return False if (
+            re.match(r"cc.*\(.*\)", self.method.lower()) and not self.use_df
+        ) else True
     @val_call
-    def method_definitions(self, storage_var:str, basis_set:str) -> List[str]:
-        assert basis_set!='', "Basis set cannot be empty string!"
+    def method_definitions(self, storage_var:str) -> List[str]:
+        assert self.basis_set!='', "Basis set cannot be empty string!"
         return [ x.strip() for x in 
             f"""\
             # Description of the method (indicate correction in comments)
             {self.func_var}=\"{self.method}\"
-            {self.basis_set_var}='{basis_set}'
+            {self.basis_set_var}='{self.basis_set}'
             # IP_TUNING: {self.do_ip_tuning}
             # GRAC correction: {self.do_grac}
-            {storage_var}['settings'].update({{\'method\': method, 'basis_set': basis_set, \'grac_correction\':{self.do_grac}, \'ip_tuning\':{self.do_ip_tuning}}})"""
+            {storage_var}['settings'].update({{\'method\': method, \'grac_correction\':{self.do_grac}, \'ip_tuning\':{self.do_ip_tuning}}})"""
             .split('\n')
         ]
 
@@ -199,8 +226,8 @@ class psi4_method(psi4_method):
             grac_string+=grac_lines
         return grac_string
     @val_call
-    def method_setting_lines(self, geom: geometry):
-        return method_setup_lines(self, geom)
+    def method_setting_lines(self, geom: geometry, return_opts_var:bool=False):
+        return method_setup_lines(self, geom, return_opts_var=return_opts_var)
 
 
 
