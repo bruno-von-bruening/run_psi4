@@ -13,7 +13,7 @@ class method_types(str,Enum):
 def make_mp_options(use_df:bool=True):
     """ DF-MP settings as of Psi4"""
     return dict(
-        mp_type="'df'" if use_df else "'conv'",
+        mp_type="'df'" if use_df else "'pk'",
     )
 def make_cc_options(use_df:bool=True):
     """ DF-MP2 settings as of Psi4"""
