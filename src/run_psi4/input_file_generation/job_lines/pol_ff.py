@@ -101,11 +101,16 @@ def generate_pol_ff_job_lines(job:psi4_job, opts:options=options())->Tuple[lis,l
         *store(job, ('settings','ff_val_dip'),'delta_dip'),
         *store(job, ('settings','ff_val_qad'),'delta_qad'),
     ]
-    tags=['x','y','z','xx','yy','zz']#,'xy','yz','xz']
+    if len(job.geom.atom_types)==1:
+        com=" # Single atom only need these elements"
+        tags=['x','xx','xy']
+    else:
+        tags=['x','y','z','xx','xy','yy','xz','yz','zz']#,'xy','yz','xz']
+        com=''
     lines+=[ 
         f"",
         f"# Field moments to apply finited field",
-        f"tensor_elements=[" ]+[
+        f"tensor_elements=[{com}" ]+[
             ind+f"'{tag}'," for tag in tags ]+[
         f"]"
     ]
@@ -147,6 +152,8 @@ def generate_pol_ff_job_lines(job:psi4_job, opts:options=options())->Tuple[lis,l
         f"fchk_file=\'{job.jobname}.fchk\'",
         'fchk(wfn, fchk_file)',
         f"",
+        f"if not os.path.isfile(fchk_file):",
+        ind+f"fchk_file=None",
         f"{job.var_names.storage}[\'files\'].update({{ \'final_fchk\':fchk_file}})",
         f"{job.var_names.storage}[\'results\']['energetic'].update({{ \'energy\': E, \'gradient\': (grad.to_array().tolist() if grad is not None else None) }})",
         f"for i,t in enumerate(tensor_elements):",
@@ -193,8 +200,6 @@ def generate_pol_ff_job_lines(job:psi4_job, opts:options=options())->Tuple[lis,l
     ]+gather_polarisabilities(job, "pol_vals", get_mom=opts.do_moments)
     
 
-    if opts.do_moments:
-        lines+=make_moments(f"{get_var('ff_reg')}['zero']['mom']",'moms')
 
     path=('results','properties')
     lines+=[f"#Store object",  
@@ -202,8 +207,9 @@ def generate_pol_ff_job_lines(job:psi4_job, opts:options=options())->Tuple[lis,l
             *store(job,path+('MolPol_FinFie_through_dens',), 'pol_vals'),
             *store(job,path+('MolPol_FinFie_through_eng',), 'pol_through_energy') ,
     ]
-    if opts.do_moments:
-        lines+=store(job,path, 'MolMom', 'moms')
+    if do_single_point_mom:
+        lines+=make_moments(f"{get_var('ff_reg')}['zero']['mom']",'moms')
+        lines+=store(job,path+('MolMom',), 'moms')
 
 
     return lines, func_lines

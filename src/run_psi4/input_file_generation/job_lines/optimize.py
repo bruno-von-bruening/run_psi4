@@ -12,12 +12,10 @@ def optimization(job:psi4_job) -> List[str]:
 
     meth_fl=p4ut.get_method_flags(method)
     wfn_var='wfn'
-    if meth_fl['mp2'] or meth_fl['cc']:
+    if any( job.method.method.lower().startswith(x) for x in ['cc','mp']):
         com=['# MP2 and CCSD energies do not correct the density matrix! But the gradient calculation does it!']
-        action='gradient'
-    else:
-        com=[]
-        action='gradient'
+    else: com=[]
+    action='gradient'
     if action=='gradient':
         grad_var=f", \'gradient\': {wfn_var}.gradient().to_array().tolist()"
     else:
@@ -30,8 +28,8 @@ def optimization(job:psi4_job) -> List[str]:
         molecule=molecule_name
     )
     lines=com+[
-        psi4_action(job, 'optimize', save_under=E_var, **kwargs),
-        psi4_action(job, 'gradient', save_under=grad_var, **kwargs),
+        *psi4_action(job, 'optimize', save_under=E_var, **kwargs),
+        *psi4_action(job, 'gradient', save_under=grad_var, **kwargs),
     ]
 
     if isinstance(jobname, type(None)):

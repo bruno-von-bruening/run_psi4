@@ -10,11 +10,23 @@ class method_types(str,Enum):
     DFT = 'dft'
     CI = 'ci'
 
-def make_mp_options(use_df:bool=True):
+def make_mp_options(order:int, use_df:bool=True):
     """ DF-MP settings as of Psi4"""
-    return dict(
-        mp_type="'df'" if use_df else "'pk'",
-    )
+    if use_df:
+        return {
+                f"mp{order}_type":"'df'"
+                }
+    else:
+        return {
+                f"mp{order}_type":"'conv'",
+                f"scf_type":"'pk'",
+        }
+def make_mp2_options(use_df:bool=True):
+    return make_mp_options(2,use_df=use_df)
+def make_mp3_options(use_df:bool=True):
+    return make_mp_options(3,use_df=use_df)
+def make_mp4_options(use_df:bool=True):
+    return make_mp_options(4,use_df=use_df)
 def make_cc_options(use_df:bool=True):
     """ DF-MP2 settings as of Psi4"""
     return dict(
