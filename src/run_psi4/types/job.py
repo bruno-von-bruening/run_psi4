@@ -100,5 +100,12 @@ class psi4_job(psi4_job):
             f"# Store method options",
             *store( self, ('settings',), opt_var, update=True )
         ]
+        from qcp_bsx_interface.augmentation.produce_augmentation import requires_augmentation, produce_augmentation, make_psi4_block
+        if requires_augmentation(self.method.basis_set):
+            lines+= [ 
+                f""
+                f"# Basis set {self.method.basis_set} is not standard in psi4 distribution but requires augmentation through basis_set_exchange api" ]+[
+                *make_psi4_block(produce_augmentation(self.method.basis_set, elements=self.geom.atom_types), basis_name=self.method.basis_set)
+            ]
 
         return lines

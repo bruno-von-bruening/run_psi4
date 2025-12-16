@@ -1,0 +1,8 @@
+name: basis_set_exchange
+channels:
+  - conda-forge
+dependencies:
+  - pip
+  - pip:
+    - build
+    - git+https://github.com/MolSSI-BSE/basis_set_exchange.git
