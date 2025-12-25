@@ -3,19 +3,6 @@ from . import *
 from run_psi4.types.job import psi4_job, store
 
 # def make_multipolar_field():
-def center_of_charge_function():
-    """ Return the function name and lines defining it
-    The function computes the center of charge of a molecule
-    """
-    lines=[]
-    func_name='get_center_of_charge'
-    lines+=[
-        f"def {func_name}(mol):",
-        ind+f"coords=mol.full_geometry().to_array()",
-        ind+f"center=np.sum([ mol.Z(i)/np.sum([mol.Z(i) for i in range(len(coords))]) * c for i,c in enumerate(coords) ] ,axis=0)",
-        ind+f"return center",
-    ]
-    return func_name, lines
 
 # @val_call
 # def make_external_field(key, center, d) -> Tuple[str,List[str]]:

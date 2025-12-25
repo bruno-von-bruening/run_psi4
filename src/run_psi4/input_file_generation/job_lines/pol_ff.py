@@ -82,7 +82,7 @@ def generate_pol_ff_job_lines(job:psi4_job, opts:options=options())->Tuple[lis,l
 
     # save the external potentials in a dictionary
 
-    from .pol_ff_functions import center_of_charge_function
+    from .pol_funcs import center_of_charge_function
     from .pol_ff_functions import make_external_field
     func_lines+=inspect.getsource(make_external_field).split('\n')
     func_name, func_lines_new = center_of_charge_function()
@@ -101,7 +101,7 @@ def generate_pol_ff_job_lines(job:psi4_job, opts:options=options())->Tuple[lis,l
         *store(job, ('settings','ff_val_dip'),'delta_dip'),
         *store(job, ('settings','ff_val_qad'),'delta_qad'),
     ]
-    tags=['x','y','z','xx','yy','zz']#,'xy','yz','xz']
+    tags=['x','y','z','xx','yy','zz','xy','yz','xz']
     lines+=[ 
         f"",
         f"# Field moments to apply finited field",
@@ -112,7 +112,7 @@ def generate_pol_ff_job_lines(job:psi4_job, opts:options=options())->Tuple[lis,l
 
     lines+=[
         f"",
-        f"psi4.set_global_option('PROPERTIES_ORIGIN', [float(x) for x in {get_var('center_of_charge')}])"
+        f"psi4.set_global_option('PROPERTIES_ORIGIN', np.array({get_var('center_of_charge')}).tolist() )",
     ]
     lines+=[ 
         f"# vec=[ -float(x) for x in {get_var('center_of_charge')} ]",
@@ -203,7 +203,7 @@ def generate_pol_ff_job_lines(job:psi4_job, opts:options=options())->Tuple[lis,l
             *store(job,path+('MolPol_FinFie_through_eng',), 'pol_through_energy') ,
     ]
     if opts.do_moments:
-        lines+=store(job,path, 'MolMom', 'moms')
+        lines+=store(job,path+('MolMom',), 'moms')
 
 
     return lines, func_lines

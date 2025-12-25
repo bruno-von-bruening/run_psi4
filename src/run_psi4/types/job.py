@@ -14,7 +14,7 @@ class file_names(BaseModel):
     fchk: str|None=None
 
 class job_tags(str, Enum):
-    POLARIZ = 'POLARIZ'
+    POLARIZ_LR = 'POLARIZ_LR'
     SP = 'SP'
     POLARIZ_FF = 'POLARIZ_FF'
     OPT = 'OPT'
@@ -38,7 +38,7 @@ class psi4_job(myBaseModel):
 
     _available_job_tags= job_tags
     __job_mapper__=dict(
-            polarizabilities=job_tags.POLARIZ,
+            polarizability_linear_response=job_tags.POLARIZ_LR,
             single_point=job_tags.SP,
             polarizability_finite_field=job_tags.POLARIZ_FF,
             optimization=job_tags.OPT,

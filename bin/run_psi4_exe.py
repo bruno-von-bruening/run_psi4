@@ -25,7 +25,7 @@ def main():
     add('--ac_shift', type=float, default=None, help=f"AC shift")
     
     # Calculation specification
-    add('--func', default='pbe0', help=f"Functional for psi4 calculations")
+    add('--method', default='pbe0', help=f"Functional for psi4 calculations")
     add('--basis', default='aug-cc-pVDZ', help=f"Main Basis set for Psi4 Calculation")
     
     # Run specifications
@@ -59,7 +59,7 @@ def main():
     ac_shift    = args.ac_shift
     # 
     job         = args.job
-    func        = args.func
+    func        = args.method
     basis_set   = args.basis
     execute     = args.exc
     executable  = args.executable

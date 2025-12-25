@@ -4,7 +4,7 @@ from .utils import *
 from run_psi4.types.job import psi4_job, store
 from .storage import make_storage_variable, dump_storage, store_timing
 from .job_lines.sinple_point import get_single_point
-from .job_lines.polarisabilities import get_polarizability
+from .job_lines.pol_lr import generate_pol_lr_job_lines
 from .job_lines.pol_ff import generate_pol_ff_job_lines
 from .job_lines.optimize import optimization
 
@@ -50,7 +50,7 @@ def make_preamble(job: psi4_job):
 from .job_lines.pol_ff_functions import store
 
 class JobTagMapper:
-    POLARIZ = 'POLARIZ'
+    POLARIZ = 'POLARIZ_LR'
     SP = 'SP'
     POLARIZ_FF = 'POLARIZ_FF'
     OPT = 'OPT'
@@ -100,8 +100,7 @@ def psi4_input_single(
     unique_tag=JobTagMapper.get_unique_key(job.jobtag)
 
     if unique_tag == JobTagMapper.POLARIZ:
-        job_lines = get_polarizability(job)
-        func_lines=[]
+        job_lines, func_lines = generate_pol_lr_job_lines(job)
     elif unique_tag == JobTagMapper.SP:
         job_lines = get_single_point(job)
         func_lines=[]
@@ -125,8 +124,11 @@ def psi4_input_single(
         ind+f"start_{unique_tag.lower()}=time.time()",
         ind+f"run_job()",
         *[ ind+x for x in store(job,('about_the_run','timings',f"Total Time for {unique_tag}"), f"start_{unique_tag.lower()}-time.time()")],
-        f"except KeyboardInterrupt as ex: # if a worker is killed then clean up the scratch!",
-        ind+f"clean(); raise KeyboardInterrupt()",
+        f"finally: clean() # I allways want to clean up the scratch",
+        # except KeyboardInterrupt as ex: # if a worker is killed then clean up the scratch!",
+        # d+f"clean(); raise KeyboardInterrupt()",
+        # except Exception as ex: # cleanup and re-raise original exception",
+        # d+f"clean(); raise ex
     ]
 
     final_lines=[
