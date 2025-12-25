@@ -22,7 +22,7 @@ def process_method(method:str) -> Dict[str,str|bool]:
             ret['do_grac']=True
         elif check_ip_tuning(comp):
             ret['do_ip_tuning']=True
-        elif comp.lower() in ['v','d3bj','a','l']:
+        elif comp.lower() in ['v','d3bj','d','lrc','a','l']:
             ret['method_corrections']+=[comp.lower()]
         else:
             method_tags.append(comp)
@@ -88,7 +88,14 @@ def method_setup_lines(method, geom, return_opts_var=False):
         freeze_core=(method.freeze_core, f"Freeze core is significantly cheaper and little impact on e.g. polarizabilities"),
     )
 
-    if meth==p4ut.method_types.MP:      func=p4ut.make_mp_options
+    if meth==p4ut.method_types.MP:      
+        if method.method.lower()=='mp2':
+            func=p4ut.make_mp2_options
+        elif method.method.lower()=='mp3':
+            func=p4ut.make_mp3_options
+        elif method.method.lower()=='mp4':
+            func=p4ut.make_mp4_options
+        else: raise Exception(f"Unkown method {method.method}")
     elif meth==p4ut.method_types.CC:    func=p4ut.make_cc_options
     elif meth==p4ut.method_types.CI:    func=p4ut.make_ci_options
     elif meth==p4ut.method_types.HF:    func=p4ut.make_hf_options
@@ -97,7 +104,7 @@ def method_setup_lines(method, geom, return_opts_var=False):
         raise ValueError(f"Method {method.method} not recognized!")
 
     reference=(
-            '\'uhf\'' if (geom.open_shell or method.unrestricted) 
+            '\'uhf\'' if (geom.open_shell or method.unrestricted) and not method.do_grac  # uhf not possible with grac!
             else '\'rhf\''
     )
     the_options.update( func(use_df=method.use_df), reference=reference )
@@ -192,7 +199,7 @@ class psi4_method(psi4_method):
     unrestricted : bool = False
     @property
     def can_do_gradient(self)->bool:
-        forbidden=[ "cc.*\(.*\)", "mp[2-9]" ]
+        forbidden=[ r"cc.*\(.*\)", r"mp[2-9]", r"wpbeh-lrc",r"b97" ]
         return False if any(
             re.match(x, self.method.lower()) and not self.use_df
             for x in forbidden
