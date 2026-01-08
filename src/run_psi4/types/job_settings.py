@@ -9,8 +9,9 @@ class pol_ff_options(controller_model):
 
     @classmethod
     def moments_possible(cls, scf_type, method):
-        return ( 
-            scf_type.lower()=='df' and any(method.lower().startswith(x) for x in ['cc','mp'])
+        """ MPX and ccX(Y) have perturbative elements and hence do not allow property evaluation (lack of coefficients)! """
+        return not ( 
+            scf_type.lower()=='conv' and any( re.match( x,method.lower()) for x in [r'cc.*\(\d+\)',r'mp\d'])
         )
 
     def __init__(self, **data):
