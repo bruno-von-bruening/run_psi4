@@ -103,11 +103,14 @@ def method_setup_lines(method, geom, return_opts_var=False):
     else:
         raise ValueError(f"Method {method.method} not recognized!")
 
-    reference=(
-            '\'uhf\'' if (geom.open_shell or method.unrestricted) and not method.do_grac  # uhf not possible with grac!
-            else '\'rhf\''
-    )
-    the_options.update( func(use_df=method.use_df), reference=reference )
+    if method.reference.lower()=='auto':
+        reference=(
+                '\'uhf\'' if (geom.open_shell or method.unrestricted) and not method.do_grac  # uhf not possible with grac!
+                else '\'rhf\''
+        )
+    else:
+        reference=f"'{method.reference}'"
+    the_options.update( func(scf_type=method.scf_type), reference=reference )
 
     if method.do_ip_tuning:
         the_options.update(dict(
@@ -141,7 +144,7 @@ def method_setup_lines(method, geom, return_opts_var=False):
     # ]
     info_lines=[f"# Information about the settings printed to output file", 
                 f"print_out(f\"INFORMATION about SET METHOD\\n\")",
-                f"print_out('\\n'.join([f\"{indent}{{k}}={{v}}\\n\" for k,v in opts.items()])) ",
+                f"print_out('\\n'.join([f\"{indent}{{k}}={{v}}\" for k,v in opts.items()])) ",
     ]
     #info_lines+=options_printout
 
@@ -160,13 +163,38 @@ def method_setup_lines(method, geom, return_opts_var=False):
         return lines
 
 class psi4_method(myBaseModel):
+    #__example_values__=dict(
     method_tag:str
     method: str
     basis_set: str
     freeze_core: bool = True
-    use_df: bool = True
+    scf_type : str='default'
+    reference: Literal['AUTO','RHF','UHF','ROHF']='AUTO'
+
+    # scf_type: str='df'
     do_ip_tuning: bool = False
     do_grac: bool = False
+
+    # @classmethod
+    # def get_default_scf_type(cls, method):
+
+    @classmethod
+    def example(cls):
+        # Check that enough mandatory information is provided!
+        dummy_info=dict(
+            method_tag='HF',
+            basis_set='sto-3g',
+            freeze_core=True,
+            scf_type='default',
+        )
+        try:
+            cls(**dummy_info)
+        except Exception as e:
+            raise RuntimeError(f"Cannot create example psi4_method: {e}")
+
+        dummy_info['method_tag']='<method[-grac,-iptuned]>'
+        return dummy_info
+
     def __init__(self, *args, **kwargs):
         if len(args)==0:
             if 'method_tag' in kwargs.keys():
@@ -195,13 +223,14 @@ class psi4_method(psi4_method):
     grac_shift_var: str="grac_shift"
     omega_var: str='omega'
     freeze_core : bool = True
-    use_df : bool = True
+
     unrestricted : bool = False
+
     @property
     def can_do_gradient(self)->bool:
         forbidden=[ r"cc.*\(.*\)", r"mp[2-9]", r"wpbeh-lrc",r"b97" ]
         return False if any(
-            re.match(x, self.method.lower()) and not self.use_df
+            re.match(x, self.method.lower()) and self.scf_type.lower()=='conv'
             for x in forbidden
         ) else True
     @val_call

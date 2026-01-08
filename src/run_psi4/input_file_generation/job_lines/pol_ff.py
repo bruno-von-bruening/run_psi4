@@ -9,16 +9,8 @@ from .pol_ff_functions import (
 
 lis=List[str]
 
-class options(BaseModel):
-    #cc_convergence: float = 1.e-12
-    do_moments: bool = True
-    delta_dip: float = 1.e-3
-    delta_qad: float = 1.e-4
-    e_convergence: float|None=None
-    def __init__(self, **data):
-        super().__init__(**data)
-        if self.e_convergence is None:
-            self.e_convergence=self.delta_qad**2/100 # Should be 0.01 exact
+from run_psi4.types.job_settings import pol_ff_options
+
 
 
 @val_call
@@ -58,7 +50,7 @@ def gather_polarisabilities(job:psi4_job, target_var:str, get_mom=True) -> lis:
     return lines
 
 @val_call
-def generate_pol_ff_job_lines(job:psi4_job, opts:options=options())->Tuple[lis,lis]:
+def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
     """Generate job lines to compute polarisability tensors and store them in a yaml file.
 
     Args:
@@ -69,7 +61,7 @@ def generate_pol_ff_job_lines(job:psi4_job, opts:options=options())->Tuple[lis,l
     #    ([] if not job.method.method.lower().startswith('cc') else [ ind+f"cc_convergence={opts.cc_convergence},"]) 
     lines+=[
         f"# For HF reference calculation as I understand. Should be probably a bit tighter for finite field (possibly its even faster do to better guess?)",
-        f"e_convergence_val={opts.e_convergence}",
+        f"e_convergence_val={job.job_settings.e_convergence}",
         f"set_options(dict(",
         ind+f"e_convergence=e_convergence_val, ",]+[
         f"))",
@@ -96,8 +88,8 @@ def generate_pol_ff_job_lines(job:psi4_job, opts:options=options())->Tuple[lis,l
         f"# External FIELD PARAMETERS",
         f"{get_var('center_of_charge')} = {func_name}({job.var_names.molecule_name}) # For evaluation of multipoles and setup of external field",
         f"distance=1000.0 # Large distance to approximate uniform field" ,
-        f"delta_dip={opts.delta_dip:E}",
-        f"delta_qad={opts.delta_qad:E}",
+        f"delta_dip={job.job_settings.delta_dip:E}",
+        f"delta_qad={job.job_settings.delta_qad:E}",
         *store(job, ('settings','ff_val_dip'),'delta_dip'),
         *store(job, ('settings','ff_val_qad'),'delta_qad'),
     ]
@@ -160,10 +152,10 @@ def generate_pol_ff_job_lines(job:psi4_job, opts:options=options())->Tuple[lis,l
         ind+f"delta= (delta_dip if len(t)==1 else delta_qad)",
         ind+f"for x in [ -1 , 1 ]: # negative and positive field",]+ \
         [ind+ind+f"do_mom=True if x>0 else False  # only do moments for positive field (negative is for energy derviation) "
-          if opts.do_moments else ind+ind+f"do_mom=False  #no moments request by main script"
+          if job.job_settings.do_moments else ind+ind+f"do_mom=False  #no moments request by main script"
         ]+[
         ind+ind+f"E,wfn,grad,mom= get_moments( {get_var('pot_registry')}[t] , x*delta, ",]+\
-        ([3*ind+f"do_mom=False ) #no moments request by main script"] if not opts.do_moments else [
+        ([3*ind+f"do_mom=False ) #no moments request by main script"] if not job.job_settings.do_moments else [
         ind+ind+ind+f"do_mom=do_mom ) # only do moments for positive field (negative is for energy derviation) ",])+[
         ind+ind+f"{get_var('ff_reg')}.update({{ t+('_neg' if x==-1 else '_pos'):dict({{ 'delta': x*delta, 'E': E, 'mom': mom }} )}})",
         ind+f"print_out(f\"CUSTOM MARKER BY USER: Finished moment '{{t}}' ({{i}} out of {{len(tensor_elements)}}, {{i+1/len(tensor_elements)*100}}%)\")",
@@ -197,8 +189,8 @@ def generate_pol_ff_job_lines(job:psi4_job, opts:options=options())->Tuple[lis,l
     lines+=[
         f"",
         f"# Gather and reform polarisabilities",
-    ]+gather_polarisabilities(job, "pol_vals", get_mom=opts.do_moments)
-    
+    ]+gather_polarisabilities(job, "pol_vals", get_mom=job.job_settings.do_moments)
+
 
 
     path=('results','properties')

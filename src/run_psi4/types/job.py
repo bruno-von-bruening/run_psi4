@@ -3,6 +3,7 @@ from .geom import geometry, geometry_wrapper
 from .machine_settings import machine_settings, my_machine_settings
 from .method import psi4_method
 
+
 class variable_names(BaseModel):
     storage: str =f"storage" # internally used variable name
     molecule_name: str = f"the_molecule" # call the two make clear that this is an instance
@@ -19,10 +20,25 @@ class job_tags(str, Enum):
     POLARIZ_FF = 'POLARIZ_FF'
     OPT = 'OPT'
 
-class psi4_job(myBaseModel):
+
+example_geometry_entry=dict(
+                input='<provide path to xyz files here>',
+                charge=0,
+                multiplicity=1,
+                ac_shift=None,
+)
+
+from .job_settings import pol_ff_options
+
+class psi4_job(controller_model):
+    __example_values__=dict(
+        geom=example_geometry_entry,
+        method=psi4_method.example(),
+    )
     jobtag : job_tags
     jobname : str|None=None
     add_method_tags : bool = True
+    job_settings: pol_ff_options| None =None 
     
     geom : geometry_wrapper
     method: psi4_method 
@@ -54,22 +70,54 @@ class psi4_job(myBaseModel):
         return jobname
     def make_storage_name(self):
         return f"STORAGE_{self.jobname}.yaml"
+    
+    @classmethod
+    def get_settings_for_job_type(cls, job_type):
+        mapper={
+            job_tags.POLARIZ_FF: pol_ff_options,
+        }
+        if not job_type in mapper:
+            raise NotImplementedError(f"Job options for job type {job_type} not implemented yet, please provide them manually!")
+        return mapper[job_type]()
+    @classmethod
+    def recognized_job_types(cls, jobtag):
+        if jobtag.upper() not in cls.__job_mapper__.values():
+            if jobtag.lower() in cls.__job_mapper__.keys():
+                return cls.__job_mapper__[jobtag.lower()]
+            else:
+                raise Exception(f"Job name {jobtag} not recognized! Choose from {list(self.__job_mapper__.keys())} or {list(self.__job_mapper__.values())}")
     def __init__(self, **data):
         jobtag_key='jobtag'
         if jobtag_key in data.keys():
-            jobtag=data[jobtag_key]
-            if jobtag.upper() not in self.__job_mapper__.values():
-                if jobtag.lower() in self.__job_mapper__.keys():
-                    data[jobtag_key]=self.__job_mapper__[jobtag.lower()]
-                else:
-                    raise Exception(f"Job name {jobtag} not recognized! Choose from {list(self.__job_mapper__.keys())} or {list(self.__job_mapper__.values())}")
+            data[jobtag_key]=self.recognized_job_types( data[jobtag_key] )
         super().__init__(**data)
+        if not self.job_settings:
+            self.job_settings=self.get_settings_for_job_type(self.jobtag)
+
+            # Use the implicit one
+        if isinstance(self.job_settings, pol_ff_options):
+            can_do_moments=self.job_settings.moments_possible(self.method.scf_type, self.method.method)
+            if self.job_settings.do_moments and not can_do_moments: # if moments requested but not possible
+                warn(f"Requested calculation of molecular moments but not possible with method {self.method.method} and scf_type {self.method.scf_type}, setting do_moments to {can_do_moments}")
+                self.job_settings.do_moments=can_do_moments
+
         if self.jobname is None:
             self.jobname=self.make_job_name()
         if self.files.storage is None:
             self.files.storage=self.make_storage_name()
         if self.files.input is None:
             self.files.input=f"{self.jobname}.psi4inp"
+    @classmethod
+    def example(cls,**kwargs):
+        dat=super().example(**kwargs)
+
+        dat['job_settings']=cls.get_settings_for_job_type( cls.recognized_job_types(dat['jobtag']) ).example()  
+
+        # Remove run data
+        dat.pop('var_names',None)
+        dat.pop('files',None)
+
+        return dat
 
 
 
