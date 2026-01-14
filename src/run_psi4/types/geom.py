@@ -33,20 +33,29 @@ def psi4_molecule_string(atom_types, coordinates, units=None, total_charge=0, mu
     ]
 
     return '\n'.join(content)
-class geometry(geometry):
+class geometry_model(controller_model):
+    """ Geometry class for psi4 jobs """
     ac_shift: float|None=None
+    charge: int|None=None
+    multiplicity: int|None=None
+    xyz_file: str
+    __example_values__=dict(
+        xyz_file='molecule.xyz',
+    )
     def check_geometry(self):
         if self.charge is None: raise Exception(f"Specify total charge (for safety)")
         if self.multiplicity is None: raise Exception(f"Specify multiplicity (for safety)")
     @val_call
     def molecule_lines(self, molecule_name:str, symm:bool=False) -> Tuple[List[str],str]:
-        self.units.LENGTH='ANGSTROM' # Import so that coordinates are returned in angstroms!
-        mol_string=f"monomer_string"
+        # self.units.LENGTH='ANGSTROM' # Import so that coordinates are returned in angstroms!
+        geom=geometry(self.xyz_file)
         molecule_str='\n'.join([4*' '+x for x in psi4_molecule_string(
-            atom_types=self.atom_types, coordinates=self.coordinates, total_charge=self.charge, multiplicity=self.multiplicity,
+            atom_types=geom.atom_types, coordinates=geom.coordinates, total_charge=self.charge, multiplicity=self.multiplicity,
               units={'LENGTH':'ANGSTROM'}, symm=symm).split('\n') ],
         )
+
         assert molecule_name!='', "Provide a valid molecule name! (molecule name is empty)"
+        mol_string=f"monomer_string"
         molecule_lines=[ f"#Define the molecule (definition in molecule string has the advantage of being able to create new molecules reliable)",
             f"{mol_string}=\"\"\"\n{molecule_str}\n\"\"\"", f"{molecule_name}=Molecule.from_string(monomer_string)"]
         return molecule_lines, mol_string
@@ -54,6 +63,14 @@ class geometry(geometry):
     def open_shell(self):
         """ Assumes that multiplicity 1 assumes open shell"""
         return (not self.multiplicity==1) 
+    def __init__(self, **data):
+
+        super().__init__(**data)
+        try:
+            geometry(self.xyz_file)
+        except Exception as e:
+            raise ValueError(f"Invalid geometry file \'{self.xyz_file}\': {e}")
+        self.check_geometry()
 
 def wrap_geometry(v):
     if isinstance(v, geometry):
@@ -61,9 +78,13 @@ def wrap_geometry(v):
     elif isinstance(v, str):
         ret = geometry(geom=v)
     elif isinstance(v, dict):
-        ret = geometry(**v)
+        ret = geometry_model(**v)
     else:
         raise ValueError(f"Cannot wrap geometry from {v} of type {type(v)}")
+    kwargs=ret.model_dump(include={'charge','multiplicity','ac_shift','xyz_file'})
+    ret=geometry_model(
+        **kwargs
+    )
     ret.check_geometry()
     return ret
-geometry_wrapper=Annotated[geometry, BeforeValidator(wrap_geometry)]
+geometry_wrapper=Annotated[geometry_model, BeforeValidator(wrap_geometry)]

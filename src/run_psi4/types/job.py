@@ -67,7 +67,7 @@ class psi4_job(controller_model):
         return x
         #return x.replace('(','\\(').replace(')','\\)')
     def make_job_name(self):
-        jobname=f"{os.path.basename(self.geom.ifi).split('.')[0]}"
+        jobname=f"{os.path.basename(self.geom.xyz_file).split('.')[0]}"
         if self.add_method_tags:
             jobname=f"{self.jobtag}_{self.escape(self.method.method_tag)}_{self.escape(self.method.basis_set)}_{jobname}"
         return jobname
@@ -113,9 +113,15 @@ class psi4_job(controller_model):
             self.files.input=f"{self.jobname}.psi4inp"
     @classmethod
     def example(cls,**kwargs):
-        dat=super().example(**kwargs)
 
-        dat['job_settings']=cls.get_settings_for_job_type( cls.recognized_job_types(dat['jobtag']) ).example()  
+
+        if not 'job_settings' in kwargs: no_settings_provided=True
+
+        assert 'jobtag' in kwargs, "Please provide a jobtag to the example function of psi4_job"
+        if no_settings_provided:
+            kwargs['job_settings']=cls.get_settings_for_job_type( cls.recognized_job_types(kwargs['jobtag']) ).example()  
+        dat=super().example(**kwargs)
+        # if no_settings_provided:
 
         # Remove run data
         dat.pop('var_names',None)

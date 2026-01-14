@@ -1,5 +1,5 @@
 from . import *
-from run_psi4.types.geom import geometry
+from run_psi4.types.geom import geometry_model
 
 def check_grac(comp):
     return  comp.upper() in ['GRAC']
@@ -162,7 +162,8 @@ def method_setup_lines(method, geom, return_opts_var=False):
     else:
         return lines
 
-class psi4_method(myBaseModel):
+# class psi4_method(myBaseModel):
+class psi4_method(controller_model):
     #__example_values__=dict(
     method_tag:str
     method: str
@@ -264,7 +265,7 @@ class psi4_method(psi4_method):
             grac_string+=grac_lines
         return grac_string
     @val_call
-    def method_setting_lines(self, geom: geometry, return_opts_var:bool=False):
+    def method_setting_lines(self, geom: geometry_model, return_opts_var:bool=False):
         return method_setup_lines(self, geom, return_opts_var=return_opts_var)
 
 
