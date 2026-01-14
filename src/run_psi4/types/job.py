@@ -28,7 +28,10 @@ example_geometry_entry=dict(
                 ac_shift=None,
 )
 
-from .job_settings import pol_ff_options
+from .job_settings import (
+    pol_ff_options,
+    optim_options
+)
 
 class psi4_job(controller_model):
     __example_values__=dict(
@@ -38,7 +41,7 @@ class psi4_job(controller_model):
     jobtag : job_tags
     jobname : str|None=None
     add_method_tags : bool = True
-    job_settings: pol_ff_options| None =None 
+    job_settings: pol_ff_options| optim_options | None =None 
     
     geom : geometry_wrapper
     method: psi4_method 
@@ -75,6 +78,7 @@ class psi4_job(controller_model):
     def get_settings_for_job_type(cls, job_type):
         mapper={
             job_tags.POLARIZ_FF: pol_ff_options,
+            job_tags.OPT: optim_options,
         }
         if not job_type in mapper:
             raise NotImplementedError(f"Job options for job type {job_type} not implemented yet, please provide them manually!")
