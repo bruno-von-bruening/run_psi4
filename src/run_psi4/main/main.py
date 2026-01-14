@@ -27,65 +27,72 @@ my_basis_set=Annotated[str, BeforeValidator(check_basis_set)]
 
 @val_call
 def psi4_run(
-    jobtag             : str,
-    geom            : List[geometry_wrapper]|geometry_wrapper|None=None,
-    method          : List[my_method]|my_method|None=None,
-    basis_set       : List[my_basis_set]|my_basis_set|None=None,
-    #
-    execute=False,
-    executable=None,
-    input_file_name=None,
-    do_test=False,
-    machine_settings : my_machine_settings = machine_settings(),
-    add_method_tags : bool = True,
-    do_mom: bool = True,
-    freeze_core: bool = True,
-    use_df: bool = True,
-    unrestricted: bool = False,
+    job: psi4_job,
+#     jobtag             : str,
+#     geom            : List[geometry_wrapper]|geometry_wrapper|None=None,
+#     method          : List[my_method]|my_method|None=None,
+#     basis_set       : List[my_basis_set]|my_basis_set|None=None,
+#     #
+#     execute=False,
+#     executable=None,
+#     input_file_name=None,
+#     do_test=False,
+#     machine_settings : my_machine_settings = machine_settings(),
+#     add_method_tags : bool = True,
+#     do_mom: bool = True,
+#     freeze_core: bool = True,
+#     use_df: bool = True,
+#     unrestricted: bool = False,
 ) -> List[Tuple[str,str]]:
 
     input_and_storage_files=[]
 
-    if not do_test:
-        if geom is None:
-            raise Exception(f"Did not provide any xyz files!")
-    else:
-        # Generate dummy xyz
-        xyz_file='H2_dummy.xyz'
-        dummy_xyz='\n'.join(['2','Dummy file for tests','H 0 0 0','H .74 0 0'])
-        with open(xyz_file,'w') as wr:
-            wr.write(dummy_xyz)
-        geom=geometry(xyz_file, charge=0, multiplicity=1)
+    # if not do_test:
+    #     if geom is None:
+    #         raise Exception(f"Did not provide any xyz files!")
+    # else:
+    #     # Generate dummy xyz
+    #     xyz_file='H2_dummy.xyz'
+    #     dummy_xyz='\n'.join(['2','Dummy file for tests','H 0 0 0','H .74 0 0'])
+    #     with open(xyz_file,'w') as wr:
+    #         wr.write(dummy_xyz)
+    #     geom=geometry(xyz_file, charge=0, multiplicity=1)
 
-    if not isinstance(geom, list):
-        geoms = [geom]
-    if not isinstance(basis_set, list):
-        basis_sets = [basis_set]
-    if not isinstance(method, list):
-        methods = [method]
+    # if not isinstance(geom, list):
+    #     geoms = [geom]
+    # if not isinstance(basis_set, list):
+    #     basis_sets = [basis_set]
+    # if not isinstance(method, list):
+    #     methods = [method]
 
     input_and_storage_files=[]
-    for geom in geoms:
-        for f in methods:
-            for b in basis_sets:
+    job=psi4_input_single(job)
+    input_and_storage_files.append( (job.files.input, job.files.storage) )
+    if job.execute:
+        execute_psi4_shell(job.files.input, psi4_executable=job.executable)
+    else:
+        print(f"Wrote the instructions to {job.files.input}")
+    # for geom in geoms:
+    #     for f in methods:
+    #         for b in basis_sets:
 
-                the_job=psi4_job(
-                    jobtag=jobtag,
-                    geom=geom,
-                    method=dict(method_tag=f, freeze_core=freeze_core, use_df=use_df,basis_set=b, unrestricted=unrestricted),
-                    execute=execute,
-                    executable=executable,
-                    machine_settings=machine_settings,
-                    do_moments=do_mom,
-                )
-                the_job = psi4_input_single(
-                    the_job
-                )
-                input_and_storage_files.append( (the_job.files.input, the_job.files.storage) )
+    #             the_job=psi4_job(
+    #                 jobtag=jobtag,
+    #                 geom=geom,
+    #                 method=dict(method_tag=f, freeze_core=freeze_core, use_df=use_df,basis_set=b, unrestricted=unrestricted),
+    #                 execute=execute,
+    #                 executable=executable,
+    #                 machine_settings=machine_settings,
+    #                 do_moments=do_mom,
+    #             )
+    #             the_job = psi4_input_single(
+    #                 the_job
+    #             )
+    #             input_and_storage_files.append( (the_job.files.input, the_job.files.storage) )
 
-                if execute:
-                    execute_psi4_shell(the_job.files.input, psi4_executable=executable)
-                else:
-                    print(f"Wrote the instructions to {the_job.files.input}")
+    #             if execute:
+    #                 execute_psi4_shell(the_job.files.input, psi4_executable=executable)
+    #             else:
+    #                 print(f"Wrote the instructions to {the_job.files.input}")
 
     return input_and_storage_files

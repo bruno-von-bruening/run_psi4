@@ -105,9 +105,9 @@ def psi4_input_single(
         job_lines = get_single_point(job)
         func_lines=[]
     elif unique_tag == JobTagMapper.POLARIZ_FF:
-        from .job_lines.pol_ff import options
-        opts=options(do_moments=job.do_moments)
-        job_lines, func_lines = generate_pol_ff_job_lines(job, opts )
+        # from .job_lines.pol_ff import options
+        # opts=options(do_moments=job.do_moments)
+        job_lines, func_lines = generate_pol_ff_job_lines(job)
     elif unique_tag == JobTagMapper.OPT:
         job_lines = optimization(job)
         func_lines=[]
