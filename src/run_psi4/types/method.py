@@ -191,7 +191,7 @@ class psi4_method(controller_model):
         try:
             cls(**dummy_info)
         except Exception as e:
-            raise RuntimeError(f"Cannot create example psi4_method: {e}")
+            raise RuntimeError(f"Cannot create example psi4_method: {e}\n{dummy_info}")
 
         dummy_info['method_tag']='<method[-grac,-iptuned]>'
         return dummy_info

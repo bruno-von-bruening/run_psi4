@@ -158,7 +158,7 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
         ([3*ind+f"do_mom=False ) #no moments request by main script"] if not job.job_settings.do_moments else [
         ind+ind+ind+f"do_mom=do_mom ) # only do moments for positive field (negative is for energy derviation) ",])+[
         ind+ind+f"{get_var('ff_reg')}.update({{ t+('_neg' if x==-1 else '_pos'):dict({{ 'delta': x*delta, 'E': E, 'mom': mom }} )}})",
-        ind+f"print_out(f\"CUSTOM MARKER BY USER: Finished moment '{{t}}' ({{i}} out of {{len(tensor_elements)}}, {{(i+1)/len(tensor_elements)*100}}%)\")",
+        ind+f"print_out(f\"CUSTOM MARKER BY USER: Finished moment '{{t}}' ({{i+1    }} out of {{len(tensor_elements)}}, {{(i+1)/len(tensor_elements)*100}}%)\")",
     ]
 
 

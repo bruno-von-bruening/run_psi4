@@ -60,6 +60,14 @@ class geometry_model(controller_model):
             f"{mol_string}=\"\"\"\n{molecule_str}\n\"\"\"", f"{molecule_name}=Molecule.from_string(monomer_string)"]
         return molecule_lines, mol_string
     @property
+    def atom_types(self):
+        geom=geometry(self.xyz_file)
+        return geom.atom_types
+    @property
+    def coordinates(self):
+        geom=geometry(self.xyz_file)
+        return geom.coordinates
+    @property
     def open_shell(self):
         """ Assumes that multiplicity 1 assumes open shell"""
         return (not self.multiplicity==1) 
@@ -67,7 +75,9 @@ class geometry_model(controller_model):
 
         super().__init__(**data)
         try:
-            geometry(self.xyz_file)
+            geom=geometry(self.xyz_file)
+            self.atom_types=geom.atom_types
+            self.coordinates=geom.coordinates
         except Exception as e:
             raise ValueError(f"Invalid geometry file \'{self.xyz_file}\': {e}")
         self.check_geometry()
