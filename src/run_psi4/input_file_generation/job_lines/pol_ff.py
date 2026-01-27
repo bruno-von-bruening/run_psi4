@@ -152,7 +152,7 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
         ind+f"delta= (delta_dip if len(t)==1 else delta_qad)",
         ind+f"for x in [ -1 , 1 ]: # negative and positive field",]+ \
         [ind+ind+f"do_mom=True if x>0 else False  # only do moments for positive field (negative is for energy derviation) "
-          if job.job_settings.do_moments else ind+ind+f"do_mom=False  #no moments request by main script"
+          if (job.job_settings.do_moments and job.method.can_do_gradient) else ind+ind+f"do_mom=False  #no moments request by main script"
         ]+[
         ind+ind+f"E,wfn,grad,mom= get_moments( {get_var('pot_registry')}[t] , x*delta, ",]+\
         ([3*ind+f"do_mom=False ) #no moments request by main script"] if not job.job_settings.do_moments else [
@@ -186,17 +186,18 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
     ]
 
 
-    lines+=[
-        f"",
-        f"# Gather and reform polarisabilities",
-    ]+gather_polarisabilities(job, "pol_vals", get_mom=job.job_settings.do_moments)
+    if job.method.can_do_gradient:
+        lines+=[
+            f"",
+            f"# Gather and reform polarisabilities",
+        ]+gather_polarisabilities(job, "pol_vals", get_mom=job.job_settings.do_moments)
 
 
 
     path=('results','properties')
     lines+=[f"#Store object",  
             *store(job,path+('expansion_center',), f"[ float(x) for x in {get_var('center_of_charge')}]"),
-            *store(job,path+('MolPol_FinFie_through_dens',), 'pol_vals'),
+            *( store(job,path+('MolPol_FinFie_through_dens',), 'pol_vals') if job.method.can_do_gradient else [] ),
             *store(job,path+('MolPol_FinFie_through_eng',), 'pol_through_energy') ,
     ]
     if do_single_point_mom:

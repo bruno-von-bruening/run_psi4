@@ -76,8 +76,8 @@ class geometry_model(controller_model):
         super().__init__(**data)
         try:
             geom=geometry(self.xyz_file)
-            self.atom_types=geom.atom_types
-            self.coordinates=geom.coordinates
+            # self.atom_types=geom.atom_types
+            # self.coordinates=geom.coordinates
         except Exception as e:
             raise ValueError(f"Invalid geometry file \'{self.xyz_file}\': {e}")
         self.check_geometry()
