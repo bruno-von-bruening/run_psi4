@@ -5,3 +5,6 @@ back/
 
 tests/basic_tests/**/*
 !tests/basic_tests/**/*.sh
+src/run_psi4/_version.py
+sandbox/**
+tests/test_new_parser/
