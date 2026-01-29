@@ -8,3 +8,4 @@ tests/basic_tests/**/*
 src/run_psi4/_version.py
 sandbox/**
 tests/test_new_parser/
+tests/export_envo/

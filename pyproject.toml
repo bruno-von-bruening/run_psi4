@@ -14,7 +14,7 @@ classifiers = [
 # [project.scripts]
 # "my_run_psi4.py" = "bin_run_psi4:my_run_psi4.main"
 [tool.setuptools]
-script-files = ["bin/run_psi4_exe.py"]
+script-files = ["bin/run_psi4_exe.py", 'bin/qcp_export_envo.py']
 
 package-dir = {"" = "src"}
 
