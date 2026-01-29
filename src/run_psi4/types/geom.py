@@ -36,11 +36,10 @@ def psi4_molecule_string(atom_types, coordinates, units=None, total_charge=0, mu
 class geometry_model(controller_model):
     """ Geometry class for psi4 jobs """
     ac_shift: float|None=None
-    charge: int|None=None
-    multiplicity: int|None=None
+    charge: int
+    multiplicity: int
     xyz_file: str
     __example_values__=dict(
-        xyz_file='molecule.xyz',
     )
     def check_geometry(self):
         if self.charge is None: raise Exception(f"Specify total charge (for safety)")

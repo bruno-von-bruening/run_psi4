@@ -96,7 +96,7 @@ def generate_pol_lr_job_lines(job:psi4_job):
         # Property calculation
         *prop_calc(job),
         # Recover polarisabilities
-        f"{pol_store_var}={recover_polarisabilities_linrsp.__name__}({job.method.func_var}, variables())",
+        f"{pol_store_var}={recover_polarisabilities_linrsp.__name__}({job.method._func_var}, variables())",
         *store(job, ('results','properties','MolPol_LinRsp'), pol_store_var)
     ]
 

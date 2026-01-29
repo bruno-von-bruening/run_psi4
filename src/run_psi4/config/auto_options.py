@@ -14,7 +14,7 @@ def decorate_scf_type(scf_type:str):
     return "'{}'".format(scf_type.strip('\'\"'))
 
 
-def post_hf_options(tag, scf_type:str):
+def post_hf_options(tag:method_types, scf_type:str):
     # https://psicode.org/psi4manual/master/autodoc_glossary_options_c.html#term-CC_TYPE-GLOBALS
     # https://psicode.org/psi4manual/1.4.0/autodir_options_c/globals__mp_type
     """ For MP and CC methods """
@@ -28,7 +28,7 @@ def post_hf_options(tag, scf_type:str):
                 f"{tag}_type": decorate_scf_type(scf_type),
                 f"scf_type": decorate_scf_type('pk'),
         }
-    else: raise ValueError(f"scf_type {scf_type} not recognized for {tag}!")
+    else: raise ValueError(f"scf_type '{scf_type}' not recognized for {tag}!")
 
 def make_mp_options(order:int, scf_type:str):
     """ DF-MP settings as of Psi4"""
@@ -40,6 +40,17 @@ def make_mp3_options(scf_type:str='default'):
     return make_mp_options(3,scf_type=scf_type)
 def make_mp4_options(scf_type:str='default'):
     return make_mp_options(4,scf_type=scf_type)
+def make_mp_options_gen(method:str):
+    """ DF-MP settings as of Psi4"""
+    if method.lower()=='mp2':
+        func=make_mp2_options
+    elif method.lower()=='mp3':
+        func=make_mp3_options
+    elif method.lower()=='mp4':
+        func=make_mp4_options
+    else: raise Exception(f"Unkown method {method}")
+    return func
+
 def make_cc_options(scf_type:str):
     """ DF-MP2 settings as of Psi4"""
     return post_hf_options("cc", scf_type=scf_type)

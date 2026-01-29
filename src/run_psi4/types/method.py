@@ -1,5 +1,6 @@
 from . import *
 from run_psi4.types.geom import geometry_model
+from run_psi4.config.auto_options import method_types, get_method_flags, make_cc_options,make_ci_options,make_dft_options,make_hf_options,make_mp_options, make_mp_options_gen
 
 def check_grac(comp):
     return  comp.upper() in ['GRAC']
@@ -76,37 +77,35 @@ def set_grac_shift(
 
 def method_setup_lines(method, geom, return_opts_var=False):
 
-    meth_fl=p4ut.method_types
-    meth=p4ut.get_method_flags(method.method)
+    meth=get_method_flags(method.method)
 
 
 
     the_options=dict(
-        basis=method.basis_set_var,
+        basis=method._basis_set_var,
         e_convergence=(1.e-6, f"psi4.default"),
         d_convergence=(1.e-6, f"psi4.default"),
         freeze_core=(method.freeze_core, f"Freeze core is significantly cheaper and little impact on e.g. polarizabilities"),
+        nat_orbs=(method.fno, f"Freeze natural orbitals"),
+        occ_tolerance=(method.fno_thres if method.fno else 0, f"Freeze natural orbitals threshold"),
+        cholesky_tolerance=(method.cd_thres, f"Cholesky decomposition threshold (only relevant for type='cd')"),
     )
+    # On frozen natural orbitals: https://psicode.org/psi4manual/1.9.x/fnocc.html
 
-    if meth==p4ut.method_types.MP:      
-        if method.method.lower()=='mp2':
-            func=p4ut.make_mp2_options
-        elif method.method.lower()=='mp3':
-            func=p4ut.make_mp3_options
-        elif method.method.lower()=='mp4':
-            func=p4ut.make_mp4_options
-        else: raise Exception(f"Unkown method {method.method}")
-    elif meth==p4ut.method_types.CC:    func=p4ut.make_cc_options
-    elif meth==p4ut.method_types.CI:    func=p4ut.make_ci_options
-    elif meth==p4ut.method_types.HF:    func=p4ut.make_hf_options
-    elif meth==p4ut.method_types.DFT:   func=p4ut.make_dft_options
+    if meth==method_types.MP:      
+        func=make_mp_options_gen(method.method)
+    elif meth==method_types.CC:    func=make_cc_options
+    elif meth==method_types.CI:    func=make_ci_options
+    elif meth==method_types.HF:    func=make_hf_options
+    elif meth==method_types.DFT:   func=make_dft_options
     else:
         raise ValueError(f"Method {method.method} not recognized!")
 
     if method.reference.lower()=='auto':
+        if method.do_grac and geom.open_shell:
+            raise Exception(f"Cannot do GRAC correction with open shell systems and automatic reference detection (UHF not possible with GRAC), please set reference explicitly!")
         reference=(
-                '\'uhf\'' if (geom.open_shell or method.unrestricted) and not method.do_grac  # uhf not possible with grac!
-                else '\'rhf\''
+                '\'uhf\'' if (geom.open_shell) else '\'rhf\''
         )
     else:
         reference=f"'{method.reference}'"
@@ -169,7 +168,12 @@ class psi4_method(controller_model):
     method: str
     basis_set: str
     freeze_core: bool = True
+    fno: bool = False # Freeze natural orbitals threshold (any value not None or zero activates it)
+    fno_thres: float=1.e-6
+    # The 
+
     scf_type : str='default'
+    cd_thres : float=1.e-4 
     reference: Literal['AUTO','RHF','UHF','ROHF']='AUTO'
 
     # scf_type: str='df'
@@ -178,6 +182,10 @@ class psi4_method(controller_model):
 
     # @classmethod
     # def get_default_scf_type(cls, method):
+    __example_values__=dict(
+        method_tag='<method[-grac,-iptuned]>',
+        basis_set='<basis_set>'
+    )
 
     @classmethod
     def example(cls):
@@ -193,8 +201,7 @@ class psi4_method(controller_model):
         except Exception as e:
             raise RuntimeError(f"Cannot create example psi4_method: {e}\n{dummy_info}")
 
-        dummy_info['method_tag']='<method[-grac,-iptuned]>'
-        return dummy_info
+        return super().example(exclude=['method'])
 
     def __init__(self, *args, **kwargs):
         if len(args)==0:
@@ -218,20 +225,29 @@ class psi4_method(controller_model):
             else:
                 kwargs[k]=v
         super().__init__(**kwargs)
+        if self.scf_type.lower()=='default':
+            method_type=get_method_flags(self.method)
+            if method_type in [method_types.MP, method_types.CC, method_types.CI]:
+                self.scf_type='conv'
+            elif method_type in [method_types.HF, method_types.DFT]:
+                self.scf_type='pk'
+            else: 
+                raise ValueError(f"Method {self.method} not recognized!")
+
 class psi4_method(psi4_method):
-    func_var: str='method'
-    basis_set_var: str='basis_set'
-    grac_shift_var: str="grac_shift"
-    omega_var: str='omega'
+    _func_var: str='method'
+    _basis_set_var: str='basis_set'
+    _grac_shift_var: str="grac_shift"
+    _omega_var: str='omega'
     freeze_core : bool = True
 
-    unrestricted : bool = False
+    # _unrestricted : bool = False
 
     @property
     def can_do_gradient(self)->bool:
         forbidden=[ r"cc.*\(.*\)", r"mp[2-9]", r"wpbeh-lrc",r"b97" ]
         return False if any(
-            re.match(x, self.method.lower()) and self.scf_type.lower()=='conv'
+            re.match(x, self.method.lower()) and self.scf_type.lower() in ['conv','cd']
             for x in forbidden
         ) else True
     @val_call
@@ -240,8 +256,8 @@ class psi4_method(psi4_method):
         return [ x.strip() for x in 
             f"""\
             # Description of the method (indicate correction in comments)
-            {self.func_var}=\"{self.method}\"
-            {self.basis_set_var}='{self.basis_set}'
+            {self._func_var}=\"{self.method}\"
+            {self._basis_set_var}='{self.basis_set}'
             # IP_TUNING: {self.do_ip_tuning}
             # GRAC correction: {self.do_grac}
             {storage_var}['settings'].update({{\'method\': method, \'grac_correction\':{self.do_grac}, \'ip_tuning\':{self.do_ip_tuning}}})"""
@@ -251,7 +267,7 @@ class psi4_method(psi4_method):
     @val_call
     def make_grac_lines(self, ac_shift:float|None=None, molecule_name:str|None=None, molecule_string:str|None=None) -> List[str] :
         assert self.do_grac, "Requested to make grac string but was internally set false (something is wrong in code logic)"
-        if ac_shift is not None:
+        if ac_shift:
             grac_string=[f"# Using user provided AC shift of {ac_shift} (assumed to be in Hartree)"]
             grac_lines, grac_var=set_grac_shift(ac_shift)
             grac_string+=grac_lines
@@ -260,8 +276,8 @@ class psi4_method(psi4_method):
             grac_string=[f"# No grac shift provided, computing HOMO and IP to get AC shift"]
             assert molecule_name is not None, f"Provide moleucle name for grac shift calculation!"
             assert molecule_string is not None, f"Provide moleucle string for grac shift calculation!"
-            grac_lines, grac_var=compute_grac_shift(self.func_var,self.basis_set_var, molecule_name, molecule_string)
-            self.grac_shift_var=grac_var
+            grac_lines, grac_var=compute_grac_shift(self._func_var,self._basis_set_var, molecule_name, molecule_string)
+            self._grac_shift_var=grac_var
             grac_string+=grac_lines
         return grac_string
     @val_call
