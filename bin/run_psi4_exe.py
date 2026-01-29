@@ -19,8 +19,12 @@ from run_psi4.util.import_helper import logger, logging, VERBOSE_LEVEL_NUM
 
 def main():
     description=None
-    epilog=None
-    import argparse as ap; par=ap.ArgumentParser(description=description, epilog=epilog)
+    epilog='\n'.join([
+        f"Usage examples:",*[ f"   -  {k} : {v}" for k,v in (
+        (f"Get a example config file for given job", f"{os.path.basename(__file__)} --job_type <select_job_type>"),
+        )]
+    ])
+    import argparse as ap; par=ap.ArgumentParser(description=description, epilog=epilog, formatter_class=ap.RawDescriptionHelpFormatter)
     add=par.add_argument
 
 
@@ -30,6 +34,7 @@ def main():
     add(  '--job_type', '-j', help=f"What to do", choices=allowed_job_choices)
     add(  '--method', '-m', help=f"Method to use (overrides config file)", default=None)
     add(  '--verbose', '-v', action='store_true', help=f"Verbose output")
+    add(  '--edit', action='store_true', help=f"Open the config file in vim after creating it (only when creating example config file)")
 
     args=par.parse_args()
 
@@ -42,12 +47,14 @@ def main():
     exc=args.exc
     executable=args.executable
     job_type=args.job_type
+    edit=args.edit
     #method=args.method
 
     if executable:
         if not os.path.isfile(executable): raise FileNotFoundError(f"Provided exectuable \'{executable}\' is not a file!")
 
-    if config_file:
+    make_example= config_file is None
+    if not make_example:
         assert os.path.isfile(config_file), f"Config file {config_file} not found!"
         config=load_json_or_yaml(config_file)
         if not isinstance(config, dict): raise ValueError( f"Config file {config_file} did not load to a dictionary!" )
@@ -83,18 +90,30 @@ def main():
     else:
         config_file=_config_file_default
         if not job_type:
-            raise ValueError(f"Did not provide job_type through command line or config file!")
+            # Show usage and quit
+            par.print_help()
+            quit(f"\n\nError: Did not provide job_type through command line or config file! (see help above)")
         config=psi4_job.example(execute=exc, executable=executable, jobtag=job_type)
 
         with open(config_file,'w') as wr:
             yaml.safe_dump(config, wr)
     
-    try:
-        job=psi4_job(**config)
-        
-    except Exception as e:
-        raise RuntimeError(f"Config file {config_file} does not translate into valid psi4_job: {e}")
-    psi4_run(job)
+    if not make_example:
+        try:
+            job=psi4_job(**config)
+            
+        except Exception as e:
+            raise RuntimeError(f"Config file {config_file} does not translate into valid psi4_job: {e}")
+    
+        psi4_run(job)
+    else:
+        if not edit:
+            print(f"Please edit the file {config_file} to set up your calculation! (you can automatically start vim with the --edit flag)")
+        else:
+            try:
+                os.system(f"nvim {config_file}")
+            except Exception as e:
+                warn(f"Could not open {config_file} in nvim: {e}")
 
     return
 
