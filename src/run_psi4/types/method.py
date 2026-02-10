@@ -7,6 +7,8 @@ def check_grac(comp):
 def check_ip_tuning(comp):
     ip_tags=['IPTUNED','IPTUNING']
     return comp.upper() in ip_tags
+def decorate_string(scf_type:str):
+    return "'{}'".format(scf_type.strip('\'\"'))
 
 @val_call
 def process_method(method:str) -> Dict[str,str|bool]:
@@ -77,27 +79,29 @@ def set_grac_shift(
 
 def method_setup_lines(method, geom, return_opts_var=False):
 
-    meth=get_method_flags(method.method)
-
-
+    meth=method.method_type
 
     the_options=dict(
-        basis=method._basis_set_var,
+        basis=method.basis_set_var,
         e_convergence=(1.e-6, f"psi4.default"),
         d_convergence=(1.e-6, f"psi4.default"),
         freeze_core=(method.freeze_core, f"Freeze core is significantly cheaper and little impact on e.g. polarizabilities"),
         nat_orbs=(method.fno, f"Freeze natural orbitals"),
         occ_tolerance=(method.fno_thres if method.fno else 0, f"Freeze natural orbitals threshold"),
         cholesky_tolerance=(method.cd_thres, f"Cholesky decomposition threshold (only relevant for type='cd')"),
+        # 
     )
     # On frozen natural orbitals: https://psicode.org/psi4manual/1.9.x/fnocc.html
 
+    dft_options=None # the default # printed separately
     if meth==method_types.MP:      
         func=make_mp_options_gen(method.method)
     elif meth==method_types.CC:    func=make_cc_options
     elif meth==method_types.CI:    func=make_ci_options
     elif meth==method_types.HF:    func=make_hf_options
-    elif meth==method_types.DFT:   func=make_dft_options
+    elif meth==method_types.DFT:   
+        func=make_dft_options
+        dft_options=method.dft_opts.model_dump(exclude=['do_grac','do_ip_tuning'])
     else:
         raise ValueError(f"Method {method.method} not recognized!")
 
@@ -111,12 +115,12 @@ def method_setup_lines(method, geom, return_opts_var=False):
         reference=f"'{method.reference}'"
     the_options.update( func(scf_type=method.scf_type), reference=reference )
 
-    if method.do_ip_tuning:
-        the_options.update(dict(
+    if method.dft_opts.do_ip_tuning:
+        dft_options.update(dict(
             DFT_omega=f"{{{method.omega_var}}}"
         ))
-    if method.do_grac:
-        the_options.update(dict(
+    if method.dft_opts.do_grac:
+        dft_options.update(dict(
             DFT_GRAC_SHIFT=f"{method.grac_shift_var}",
         ))
 
@@ -124,19 +128,25 @@ def method_setup_lines(method, geom, return_opts_var=False):
     indent=4*' '
     def form(v):
         def main_form(v):
-            return v.strip('{}') if isinstance(v,str) else str(v)
+            base=v.strip('{}') if isinstance(v,(str)) else str(v)
+            if not issubclass(type(v), var_str) and issubclass(type(v), str):
+                base=decorate_string(base)
+            return base
         if isinstance(v,tuple):
             return ( main_form(v[0]), ' # '+v[1] )
         else:
             return ( main_form(v), '' )
 
 
-    options_set=[ 
-        "{}{:<15} = {:<15},{}".format(
-            indent, k.strip(), *form(v) 
-        ) 
-        for k,v in the_options.items() 
-    ]
+    def set_options(di):
+        return [ 
+            "{}{:<15} = {:<15},{}".format(
+                indent, k.strip(), *form(v) 
+            ) 
+            for k,v in di.items() 
+        ]
+
+
     # also print the options into the psi4 output 
     # options_printout=[
     #     f"print_out(\"{indent}{k}={{}}\\n\".format({v}))" for k,v in the_options.items()
@@ -148,11 +158,23 @@ def method_setup_lines(method, geom, return_opts_var=False):
     #info_lines+=options_printout
 
     # Create the whole section
-    method_setup_lines=[
-        '# Setting the options for the calculation',
-        "opts=dict("] + options_set + [")",
+
+    if dft_options:
+        set_opts=[
+            f"dft_opts=dict(", *set_options(dft_options), ')',
+        ]
+    else: set_opts=[]
+    set_opts+=[
+        "opts=dict(", 
+        *set_options(the_options),
+        *([] if not dft_options else [indent+"**dft_opts"]),
+        ")",
         'clean_options() # Set options to default (avoid bad surprises)',
         "set_options(opts)",
+    ]
+
+    method_setup_lines=[
+        '# Setting the options for the calculation', *set_opts
     ]
 
     lines= method_setup_lines+info_lines
@@ -161,6 +183,14 @@ def method_setup_lines(method, geom, return_opts_var=False):
     else:
         return lines
 
+class dft_opts_model(BaseModel):
+    # DFT options
+    dft_radial_scheme: Literal['TREUTLER','BECKE', 'MULTIEXP', 'EM', 'MURA']='TREUTLER' # https://psicode.org/psi4manual/1.9.x/autodoc_glossary_options_c.html#term-DFT_RADIAL_SCHEME-SCF
+    dft_radial_points: int=75 # https://psicode.org/psi4manual/1.9.x/autodoc_glossary_options_c.html#term-DFT_RADIAL_POINTS-SCF
+    dft_spherical_points: int=302 # # https://psicode.org/psi4manual/1.9.x/autodoc_glossary_options_c.html#term-DFT_SPHERICAL_POINTS-SCF
+    dft_spherical_scheme: Literal['LEBEDEV']='LEBEDEV'
+    do_ip_tuning: bool = False
+    do_grac: bool = False
 # class psi4_method(myBaseModel):
 class psi4_method(controller_model):
     #__example_values__=dict(
@@ -175,10 +205,11 @@ class psi4_method(controller_model):
     scf_type : str='default'
     cd_thres : float=1.e-4 
     reference: Literal['AUTO','RHF','UHF','ROHF']='AUTO'
+    dft_opts: dft_opts_model=dft_opts_model()
+
+
 
     # scf_type: str='df'
-    do_ip_tuning: bool = False
-    do_grac: bool = False
 
     # @classmethod
     # def get_default_scf_type(cls, method):
@@ -186,6 +217,9 @@ class psi4_method(controller_model):
         method_tag='<method[-grac,-iptuned]>',
         basis_set='<basis_set>'
     )
+    @property
+    def method_type(self):
+        return get_method_flags(self.method)
 
     @classmethod
     def example(cls):
@@ -226,7 +260,7 @@ class psi4_method(controller_model):
                 kwargs[k]=v
         super().__init__(**kwargs)
         if self.scf_type.lower()=='default':
-            method_type=get_method_flags(self.method)
+            method_type=self.method_type
             if method_type in [method_types.MP, method_types.CC, method_types.CI]:
                 self.scf_type='conv'
             elif method_type in [method_types.HF, method_types.DFT]:
@@ -234,12 +268,22 @@ class psi4_method(controller_model):
             else: 
                 raise ValueError(f"Method {self.method} not recognized!")
 
+class var_str(str):
+    pass
+    # def decorate_string(self):
+    #     return decorate_string(self)
+
 class psi4_method(psi4_method):
     _func_var: str='method'
-    _basis_set_var: str='basis_set'
+    _basis_set_var: var_str='basis_set'
     _grac_shift_var: str="grac_shift"
     _omega_var: str='omega'
     freeze_core : bool = True
+    @property
+    def basis_set_var(self):
+        return var_str(self._basis_set_var)
+
+    
 
     # _unrestricted : bool = False
 
@@ -253,20 +297,16 @@ class psi4_method(psi4_method):
     @val_call
     def method_definitions(self, storage_var:str) -> List[str]:
         assert self.basis_set!='', "Basis set cannot be empty string!"
-        return [ x.strip() for x in 
-            f"""\
-            # Description of the method (indicate correction in comments)
-            {self._func_var}=\"{self.method}\"
-            {self._basis_set_var}='{self.basis_set}'
-            # IP_TUNING: {self.do_ip_tuning}
-            # GRAC correction: {self.do_grac}
-            {storage_var}['settings'].update({{\'method\': method, \'grac_correction\':{self.do_grac}, \'ip_tuning\':{self.do_ip_tuning}}})"""
-            .split('\n')
+        return [ 
+            f"# Description of the method (indicate correction in comments)",
+            f"{self._func_var}=\"{self.method}\"",
+            f"{self.basis_set_var}='{self.basis_set}'",
+            f"{storage_var}['settings'].update({{\'method\': method, \'grac_correction\':{self.dft_opts.do_grac}, \'ip_tuning\':{self.dft_opts.do_ip_tuning}}})"
         ]
 
     @val_call
     def make_grac_lines(self, ac_shift:float|None=None, molecule_name:str|None=None, molecule_string:str|None=None) -> List[str] :
-        assert self.do_grac, "Requested to make grac string but was internally set false (something is wrong in code logic)"
+        assert self.dft_opts.do_grac, "Requested to make grac string but was internally set false (something is wrong in code logic)"
         if ac_shift:
             grac_string=[f"# Using user provided AC shift of {ac_shift} (assumed to be in Hartree)"]
             grac_lines, grac_var=set_grac_shift(ac_shift)
@@ -276,7 +316,7 @@ class psi4_method(psi4_method):
             grac_string=[f"# No grac shift provided, computing HOMO and IP to get AC shift"]
             assert molecule_name is not None, f"Provide moleucle name for grac shift calculation!"
             assert molecule_string is not None, f"Provide moleucle string for grac shift calculation!"
-            grac_lines, grac_var=compute_grac_shift(self._func_var,self._basis_set_var, molecule_name, molecule_string)
+            grac_lines, grac_var=compute_grac_shift(self._func_var,self.basis_set_var, molecule_name, molecule_string)
             self._grac_shift_var=grac_var
             grac_string+=grac_lines
         return grac_string

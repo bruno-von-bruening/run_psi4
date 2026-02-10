@@ -147,10 +147,10 @@ class psi4_job(psi4_job):
         lines=self.method.method_definitions( storage_var=self.var_names.storage )
 
         method=self.method
-        if method.do_grac:
+        if method.dft_opts.do_grac:
             lines+=method.make_grac_lines(molecule_name=self.var_names.molecule_name, molecule_string=self.var_names.molecule_string)
 
-        if method.do_ip_tuning:
+        if method.dft_opts.do_ip_tuning:
             lines+= method.get_ip_tuned_omega(storage_var=self.var_names.storage)
 
         new_lines,opt_var=self.method.method_setting_lines(self.geom, return_opts_var=True)
