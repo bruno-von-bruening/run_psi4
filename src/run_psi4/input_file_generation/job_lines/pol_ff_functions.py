@@ -30,18 +30,18 @@ def make_external_field(key, center, d):
     elif len(key)==2:
         a,b=key[0],key[1]
         vec1, vec2=get_dir(a), get_dir(b)
-        q= -d**3/3.
+        q= -d**3/3
         if a==b:
             arrangement=[
-                ( 2., -vec1),
-                ( 2., vec1),
+                ( 1., -vec1),
+                ( 1., vec1),
             ]
         else:
             arrangement=[
-                ( +1, + (vec1 + vec2)),
-                ( +1, - (vec1 + vec2)),
-                ( -1, + (vec1 - vec2)),
-                ( -1, - (vec1 - vec2)),
+                ( +.5, + (vec1 + vec2)),
+                ( +.5, - (vec1 + vec2)),
+                ( -.5, + (vec1 - vec2)),
+                ( -.5, - (vec1 - vec2)),
             ]
     else:
         raise ValueError(f"Unsupported key length: {len(key)}")
@@ -309,8 +309,11 @@ def meassure_multipoles_func(job):
         # "print('All available wfn variables:')",
         # "for var in all_vars:",
         # "    print(var)",
+        f"def my_trans(x):",
+        ind+f"fac=1",# if len(x)==4 else 2",
+        ind+f"return -fac*x if not isinstance(x,(list)) else [ -fac*v for v in x ]",
         "return dict({ ",
-        *[ind+f"'{trans_prop(prop)}' : wfn.variable('{trans_prop(prop).upper()}')," for prop in properties],
+        *[ind+f"'{trans_prop(prop)}' :  my_trans(wfn.variable('{trans_prop(prop).upper()}')) ," for prop in properties], # the -1 is for the conversion from psi4 convention to usual convention (e.g. dipole is negative since it e-)
         '})'
     ]
 

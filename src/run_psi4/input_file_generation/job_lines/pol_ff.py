@@ -28,26 +28,6 @@ def make_functions(job:psi4_job):
     return lines
 
 
-@val_call
-def gather_polarisabilities(job:psi4_job, target_var:str, get_mom=True) -> lis:
-    lines=[]
-
-    do_print=True
-    if do_print and get_mom:
-        lines+= [ f"for t in tensor_elements:",
-            ind+f"pol = {get_var('pol_reg')}[t]",
-            ind+f"for k in sorted(pol.keys()):",
-            ind+ind+f"m=pol[k]",
-            ind+ind+f"np.set_printoptions(precision=3, suppress=True)",
-            ind+ind+f"the_string=np.array2string(np.array(m),separator = ' ')",
-            ind+ind+f"print_out( f\"\\n{{k}}@{{t}}: pol is \\n{{the_string}}\\n\" )",
-        ]
-    
-    # Save
-    lines+=[
-        f"{target_var}=pol_transform({get_var('pol_reg')})",
-    ]
-    return lines
 
 @val_call
 def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
@@ -163,34 +143,74 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
 
 
     # Compute the finite difference
+
+    def get_second_derivative(plus, minus, zero,delta):
+        return (plus-2*zero+minus)/delta**2 
+    def get_first_derivative(plus, minus, delta):
+        return (plus-minus)/(2*delta) 
+
+    print_out=print
+    def get_derivatives_from_energy(the_di,t, print_info=False):
+        # FD formula (polarisabilities are positive by convention)",
+        plus, zero, minus= ( the_di[x] for x in  [t+'_pos', 'zero',t+'_neg'] )
+        delta = (plus['delta'] - zero['delta'] )
+        if print_info:
+            print_out(f"\\nE={plus['E']} , E0={zero['E']}, E_min={minus['E']} for tag={{t}} and delta={delta}")
+        epl,eze,emi=[float(x['E']) for x in [plus,zero,minus]]
+        return (
+            get_first_derivative(epl,emi,delta) ,
+            -get_second_derivative(epl,emi,eze,delta) 
+        )
+    def get_derivatives_from_moments(the_di,t):
+        """ Could also get second derivative """
+        cur_pol=dict()
+        # plus, zero, minus= ( the_di[x] for x in  [t+'_pos', 'zero',t+'_neg'] )
+        try:
+            plus, zero= ( the_di[x] for x in  [t+'_pos', 'zero'] )
+        except: raise Exception(f" {the_di.keys()}")
+        delta = (plus['delta'] - zero['delta'] )
+        if any(x['mom'] is None for x in [plus, zero] ): return None
+        for k in set(list(plus['mom'].keys())+list(zero['mom'].keys()) ):
+            assert k in plus['mom'].keys() and k in zero['mom'].keys()
+            cur_pol.update({ 
+                k: np.array( -get_first_derivative(plus['mom'][k],zero['mom'][k], delta=delta/2) )
+            })
+        return cur_pol
+    
+
     var_mem.update({f"pol_reg":"pol_reg"})
     lines += [ 
         f"",
         f"# get polarisabilities through finite differences",
+        F"#FORMULAS",
+        *inspect.getsource(get_second_derivative).split('\n'), 
+        *inspect.getsource(get_first_derivative).split('\n'),
+        *inspect.getsource(get_derivatives_from_energy).split('\n'),
+        *( [] if not job.method.can_do_gradient else 
+            inspect.getsource(get_derivatives_from_moments).split('\n')
+        ),
+        f"#BODY",
         f"{get_var('pol_reg')}=dict()",
-        f"pol_through_energy=dict()",
+        ( f"pol_through_energy, pol_through_moments, mom_through_energy=dict(),dict(), dict()" if job.method.can_do_gradient  else
+          f"pol_through_energy, mom_through_energy=dict(),dict()"),
+        f"mapper=dict( (k,i) for i,k in enumerate(['x','y','z']) )",
         f"for t in tensor_elements:",
-        ind+f"first,second, third= {get_var('ff_reg')}[t+'_pos'], {get_var('ff_reg')}['zero'], {get_var('ff_reg')}[t+'_neg']",
-        ind+f"print_out(f\"E={{first['E']}} , E0={{second['E']}} for tag={{t}} and delta={{delta}}\\n\")",
-        ind+f"cur_pol=dict()",
-        ind+f"delta = (first['delta'] - second['delta'] )",
-        ind+f"mapper=dict( (k,i) for i,k in enumerate(['x','y','z']) )",
-        ind+f"pol_through_energy[f\"{{t}}@{{t}}\"]=float(-(first['E']-2*second['E']+third['E'])/(delta**2) ) # FD formula (polarisabilities are positive by convention)",
-        # ind+ind+f"*( 1/2 if len(t)==2 else 1) ) # Induction Energy",
-        ind+f"if any(x['mom'] is None for x in [first, second] ): continue",
-        ind+f"for k in set(list(first['mom'].keys())+list(second['mom'].keys()) ):",
-        ind+ind+f"assert k in first['mom'].keys() and k in second['mom'].keys()",
-        ind+ind+f"ff_mom=( first['mom'][k] - second['mom'][k]) / delta",
-        ind+ind+f"cur_pol.update({{ k:  np.array(ff_mom).tolist() }})",
-        ind+f"{get_var('pol_reg')}.update({{ t : cur_pol }})",
+        ind+f"first,second=get_derivatives_from_energy({get_var('ff_reg')}, t, print_info=True)",
+        ind+f"pol_through_energy[f\"{{t}}@{{t}}\"]=second",
+        ind+f"mom_through_energy[f\"{{t}}\"]=first",
+        *( [] if not job.method.can_do_gradient else 
+            [ ind+f"pol_through_moments[f\"{{t}}\"]=get_derivatives_from_moments({get_var('ff_reg')}, t)"]
+        )
     ]
 
 
-    if job.method.can_do_gradient:
+    if job.method.can_do_gradient and job.job_settings.do_moments:
         lines+=[
             f"",
             f"# Gather and reform polarisabilities",
-        ]+gather_polarisabilities(job, "pol_vals", get_mom=job.job_settings.do_moments)
+            f"pol_vals=pol_transform(pol_through_moments)",
+        ]
+        #+gather_polarisabilities(job, "pol_vals", get_mom=job.job_settings.do_moments)
 
 
 
@@ -199,6 +219,7 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
             *store(job,path+('expansion_center',), f"[ float(x) for x in {get_var('center_of_charge')}]"),
             *( store(job,path+('MolPol_FinFie_through_dens',), 'pol_vals') if job.method.can_do_gradient else [] ),
             *store(job,path+('MolPol_FinFie_through_eng',), 'pol_through_energy') ,
+            *store(job,path+('MolMom_FinFie_through_eng',), 'mom_through_energy') ,
     ]
     if do_single_point_mom:
         lines+=make_moments(f"{get_var('ff_reg')}['zero']['mom']",'moms')
