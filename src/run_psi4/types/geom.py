@@ -80,6 +80,8 @@ class geometry_model(controller_model):
                 dummy_string, kind=self.xyz_file.split('_')
                 if kind.lower()=='h2':
                     geom=geometry(atom_types=['H','H'], coordinates=np.array([ 0]*5+[.74]).reshape(-1,3), length_units='ANGSTROM')
+                elif kind.lower()=='be':
+                    geom=geometry(atom_types=['Be'], coordinates=np.array([[0,0,0]]), length_units='ANGSTROM')
                 else:
                     raise Exception(f"Unrecognized dummy tag '{kind}'")
             except Exception as ex: raise Exception(f"Could not interpret {self.xyz_file}: {ex}") from ex

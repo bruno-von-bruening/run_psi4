@@ -136,7 +136,8 @@ allowed_job_choices=list(psi4_job.__job_mapper__.keys())
 @val_call
 def store(job:psi4_job,path:tuple, target_var:str, update:bool=False):
     storage_var=job.var_names.storage
-    the_path=''.join([f"[\'{p}\']" for p in path])
+    # if not __<x>__ make it string otherweise keep as variable name
+    the_path=''.join(["["+(f"\'{p}\'" if not p.startswith('__') else p.replace('__','')) + "]" for p in path])
     return [ f"{storage_var}{the_path}"+
         ( f"= {target_var}" if not update else
             f".update({target_var})"

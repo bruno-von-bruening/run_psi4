@@ -8,6 +8,7 @@ def make_storage_variable(job:psi4_job) -> List[str]:
         f"from collections import defaultdict # allows for creating key paths beyond one level: dic=defaultdict(dict); dic['a']['b']=c", 
         f"def nested_dict(): return defaultdict(nested_dict) # Required for arbitrary depth",
         f"{job.var_names.storage}=defaultdict(nested_dict)",
+        f"{job.var_names.storage}['files'] = dict() # store files here, e.g. fchk, etc.",
         # f"{job.var_names.storage}.update( files={{}}, results={{}}, settings={{}}, about_the_run={{ 'timings': {{}} }} )  # optional defaultdict will initialise anyway",
         f"{job.var_names.storage_file_name}=\'{job.files.storage}\' # will drop here at the end of the run",
     ]

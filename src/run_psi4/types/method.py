@@ -184,16 +184,20 @@ def method_setup_lines(method, geom, return_opts_var=False):
         return lines
 
 class dft_opts_model(BaseModel):
-    # DFT options
+    # DFT grid options # https://psicode.org/psi4manual/1.9.x/dft.html
+    # one to one psi4 keywords
     dft_radial_scheme: Literal['TREUTLER','BECKE', 'MULTIEXP', 'EM', 'MURA']='TREUTLER' # https://psicode.org/psi4manual/1.9.x/autodoc_glossary_options_c.html#term-DFT_RADIAL_SCHEME-SCF
     dft_radial_points: int=75 # https://psicode.org/psi4manual/1.9.x/autodoc_glossary_options_c.html#term-DFT_RADIAL_POINTS-SCF
     dft_spherical_points: int=302 # # https://psicode.org/psi4manual/1.9.x/autodoc_glossary_options_c.html#term-DFT_SPHERICAL_POINTS-SCF
     dft_spherical_scheme: Literal['LEBEDEV']='LEBEDEV'
+    # dft_pruning_scheme: Literal['ROBUST','TREUTLER']|None=None # https://psicode.org/psi4manual/1.9.x/autodoc_glossary_options_c.html#term-DFT_PRUNING_SCHEME-SCF
+    # Other options
     do_ip_tuning: bool = False
     do_grac: bool = False
 # class psi4_method(myBaseModel):
 class psi4_method(controller_model):
     #__example_values__=dict(
+    __method_types__=method_types
     method_tag:str
     method: str
     basis_set: str
@@ -267,6 +271,9 @@ class psi4_method(controller_model):
                 self.scf_type='pk'
             else: 
                 raise ValueError(f"Method {self.method} not recognized!")
+        elif self.scf_type.lower()=='conv' and self.method_type in [method_types.HF, method_types.DFT]:
+            warn(f"SCF type 'conv' is not a valid key for HF and DFT methods! Automatically changing to 'pk'.")
+            self.scf_type='pk' # was important when inherting settings from e.g. ccsd
 
 class var_str(str):
     pass
@@ -290,6 +297,8 @@ class psi4_method(psi4_method):
     @property
     def can_do_gradient(self)->bool:
         forbidden=[ r"cc.*\(.*\)", r"mp[2-9]", r"wpbeh-lrc",r"b97" ]
+        if re.fullmatch(r"cc.*", self.method.lower()) and self.scf_type.lower() in ['conv','cd']:
+            return False
         return False if any(
             re.match(x, self.method.lower()) and self.scf_type.lower() in ['conv','cd']
             for x in forbidden

@@ -1,6 +1,7 @@
 from . import *
 
 from run_psi4.types.job import psi4_job, store
+from run_psi4.types.method import method_types
 
 # def make_multipolar_field():
 
@@ -56,6 +57,36 @@ def make_external_field(key, center, d):
         center=center,
         separation=d,
     )
+def add_energy_vars_to_loc_store(job,loc_store_name):
+    """Return lines that update loc_store (name as string) with correlated energies if available.
+    These are additional variables (e.g. CCSD(T) yields also CCSD energy as preliminary)
+    """
+    out=[]
+    if job.method.method_type in [ method_types.CC, method_types.MP ]:
+        out += [
+            f"try:",
+            ind+f"{loc_store_name}.update(E_HF=psi4.variable(\"HF TOTAL ENERGY\"))",
+        ]
+        if job.method.method_type in [ method_types.CC]:
+            out += [
+                ind+f"{loc_store_name}.update(E_MP2=psi4.variable(\"MP2 TOTAL ENERGY\"))",
+            ]
+            if job.method.method.lower() == 'ccsd':
+                # nothing extra for plain CCSD here
+                pass
+            elif job.method.method.lower() == 'ccsd(t)':
+                out += [
+                    ind+f"{loc_store_name}.update(E_CCSD=psi4.variable(\"CCSD TOTAL ENERGY\"))"
+                    # -psi4.variable('CCSD(T) CORRELATIOn ENERGY')) # CCSD is acutally CCSD(T)!", 
+                ]
+            else:
+                raise ValueError(f"Unsupported CC method: {job.method.method}")
+        out+=[
+            f"except Exception as ex:",
+            ind+f"warning=f\"WARNING: Some preliminary energies (e.g. HF or MP2) not available for method {job.method.method}, skipping: {{str(ex)}}\"",
+            ind+f"print(warning);print_out(\'CUSTOM \'+warning) ",
+        ]
+    return out
 
 @val_call
 def make_external_field_old(tensor_key:str) -> List[str]:
@@ -170,7 +201,10 @@ def get_moment_function(job):
         4. store moments in registry
     """
     # first get the wfn
-    lines=[]
+    loc_store='store_di'
+    lines=[
+        f"{loc_store}=dict()"
+    ]
 
     #mom_registry='mom_registry'
     #pot_registry='pot_registry'
@@ -195,8 +229,15 @@ def get_moment_function(job):
     lines+=[ 
         f"single_point_time=time.time()",]+[
         *psi4_action(job, action, **kwargs) ]+[
-        *store_timing(job, 'single_point', 'single_point_time',add=True)
+        *store_timing(job, 'single_point', 'single_point_time',add=True),
+        f"{loc_store}.update(E={kwargs['save_under']})"
     ]
+
+
+    # 
+    lines += add_energy_vars_to_loc_store(job,loc_store_name=loc_store)
+
+
     # lines+=[
     #         f"if not {ext_pot_int} is None:", 
     #         ind+f"E_int=0.0",
@@ -230,6 +271,7 @@ def get_moment_function(job):
         lines+=[ f"if do_mom:"]+[ ind+l for l in grad_lines ]+[f"else: grad=None"]
     else:
         lines+=[f"grad=None "]
+    lines+=[f"{loc_store}.update(grad=grad)"]
 
     # 3. evaluate moments
     lines+=[ 
@@ -243,7 +285,7 @@ def get_moment_function(job):
             # f"{mom_registry}.update({{",
             # ind+f"\'{pot_tag}\': mom",
             # "}})",
-            f"return E,wfn,grad,mom"
+            f"return {loc_store},wfn,mom"
     ]
 
     lines=[ 
