@@ -57,6 +57,35 @@ def make_external_field(key, center, d):
         center=center,
         separation=d,
     )
+
+import numpy as np
+
+def nuclear_external_point_charge_energy(wfn):
+    """
+    Nuclear interaction energy with external point charges.
+
+    Parameters
+    ----------
+    wfn : psi4.core.Wavefunction
+
+    Returns
+    -------
+    float
+        Nuclear–external point charge interaction energy (Hartree)
+    """
+
+    # Correction not needed for HF like methods
+    method = wfn.name().upper()
+    if not any( method.startswith(x) for x in ["MP",'CC']):
+        return 0
+
+    # External charges (if none, Psi4 returns empty arrays)
+    pot=wfn.external_pot()
+    mol = wfn.molecule()
+    if pot is None: return 0
+    else: return pot.computeNuclearEnergy(mol)
+
+
 def add_energy_vars_to_loc_store(job,loc_store_name):
     """Return lines that update loc_store (name as string) with correlated energies if available.
     These are additional variables (e.g. CCSD(T) yields also CCSD energy as preliminary)
@@ -88,110 +117,6 @@ def add_energy_vars_to_loc_store(job,loc_store_name):
         ]
     return out
 
-@val_call
-def make_external_field_old(tensor_key:str) -> List[str]:
-    """ Most basic unfiltered or oriented tensors for given rank """
-    lines=[]
-
-    _max_rank=2 # only quadrupoles supported for now
-    _min_rank=0 # ALlowd monopoles (may need that for some tests of linear response)
-
-    if len(tensor_key)==0:
-        raise ValueError("Tensor key \'{tensor_key}\' must have at least one element indicating the rank of the tensor.")
-    elif len(tensor_key)<_min_rank:
-        raise ValueError(f"Tensor key \'{tensor_key}\' length is below minimum supported rank of {_min_rank}.")
-    elif len(tensor_key)>_max_rank:
-        raise ValueError(f"Tensor key \'{tensor_key}\' length exceeds maximum supported rank of {_max_rank}.")
-    else:
-        pass
-
-    def get_dir(tensor_key:str):
-        assert len(tensor_key)==1, f"Expected input as single character"
-        mapper=dict( (v,i) for i,v in enumerate(['x','y','z']) )
-        if not tensor_key in mapper:
-            raise ValueError(f"Tensor key \'{tensor_key}\' is not a valid key.")
-        pos=mapper[tensor_key]
-        vec=np.zeros(3) ; vec[pos]=1
-        return vec
-
-    cutoff=10 # bohr
-    d=1000# 1% error margin
-
-    vec_mu=None
-    delta_key='delta'; d_key='d'
-    lines+=[
-        f"coords=the_molecule.full_geometry().to_array()",
-        f"center=np.sum([ the_molecule.Z(i)/np.sum([the_molecule.Z(i) for i in range(len(coords))]) * c for i,c in enumerate(coords) ] ,axis=0)",
-        f"x=np.array([ 1. ,0. ,0. ])",
-        f"y=np.array([ 0. ,1. ,0, ])",
-        f"z=np.array([ 0. ,0. ,1. ])",
-    ]
-    lines+=[ f"{d_key}={d}"]
-    if len(tensor_key)==1:
-        vec=get_dir(tensor_key)
-        lines+=[
-            f"vec=np.array([ {vec[0]}, {vec[1]}, {vec[2]}])",
-            f"vec_inf={d_key}*vec",
-            f"q=-{d_key}**2/2 ",#* {delta_key} ",
-        ]
-        vecs_bare=[
-            ( -1, f"center - d*{tensor_key}"),
-            ( 1,f"center + d*{tensor_key}"),
-        ]
-
-    elif len(tensor_key)==2:
-
-        vec=get_dir(tensor_key[0])
-
-        vecs_bare=[]
-        a,b=tensor_key[0],tensor_key[1]
-
-        if a==b:
-            fac=3
-        else:
-            fac=6
-        lines+=[
-            f"q=-({d_key}**3)/({fac})     ",
-        ]
-
-        if a==b:
-            vecs_bare+=[
-                (1., f"center - {a}*d    "),
-                (1., f"center + {a}*d    "),
-            ]
-        else:
-            fac=f"pref"
-            lines+=[f"{fac}=d/np.sqrt(2)"]
-            v_help=[                    # The vectors (1,1)^T and (1,-1)^T
-                ["+", "+", +1],
-                ["-", "+", -1 ]
-            ]
-            def flip(x):
-                if x=='+': return '-'
-                elif x=='-': return '+'
-                else: raise Exception(x)
-            for fi,se, sign in v_help:
-                vecs_bare+=[
-                    (1.*sign, f"center {fi} {fac}*{a} {se} {fac}*{b}"),
-                    (1.*sign, f"center {flip(fi)} {fac}*{a} {flip(se)} {fac}*{b}")
-                ]
-    else: raise Exception()
-
-
-    lines+=[
-        f"pot_base=dict(",
-        ind+f"charges = ["
-    ] + [
-        ind+ind+f"({x}*q, {tag})," for x,tag in vecs_bare  
-    ]+[
-        ind+f"],",
-        ind+f"center = center,",
-        ind+f"separation = d,",
-        f")",
-    ]
-    lines+=[f"{get_var('pot_registry')}.update({{ '{tensor_key}':pot_base }})"]
-    
-    return lines
 
 def get_moment_function(job):
     """ For each perturbation tag:
@@ -282,10 +207,11 @@ def get_moment_function(job):
             ind+f"mom= eval_moments(wfn)" ,
             *[ ind+x for x in store_timing(job, 'eval_mom', 'start_mom', add=True)],
             f"else: mom=None",
+            f"{loc_store}.update(mom=mom)",
             # f"{mom_registry}.update({{",
             # ind+f"\'{pot_tag}\': mom",
             # "}})",
-            f"return {loc_store},wfn,mom"
+            f"return {loc_store},wfn"
     ]
 
     lines=[ 
@@ -353,10 +279,14 @@ def meassure_multipoles_func(job):
         # "    print(var)",
         f"def my_trans(x):",
         ind+f"fac=1",# if len(x)==4 else 2",
-        ind+f"return -fac*x if not isinstance(x,(list)) else [ -fac*v for v in x ]",
-        "return dict({ ",
-        *[ind+f"'{trans_prop(prop)}' :  my_trans(wfn.variable('{trans_prop(prop).upper()}')) ," for prop in properties], # the -1 is for the conversion from psi4 convention to usual convention (e.g. dipole is negative since it e-)
-        '})'
+        ind+f"ar=-1*np.array(x).reshape(tuple([3]*int(np.emath.logn(3,x.size))))", # e-
+        ind+f"return {tag_matrix.__name__}(ar) ",
+        f"new_di= dict()",
+        f"[ new_di.update(my_trans(wfn.variable(prop) ) ) for prop in {[ trans_prop(x) for x in properties]} ]",
+        f"return new_di",
+        # "return dict({ ",
+        # *[ind+f"'{trans_prop(prop)}' :  my_trans(wfn.variable('{trans_prop(prop).upper()}')) ," for prop in properties], # the -1 is for the conversion from psi4 convention to usual convention (e.g. dipole is negative since it e-)
+        # '})'
     ]
 
     lines=[ 
@@ -385,6 +315,7 @@ def tag_matrix(M, field=None):
 
     return new_M
 
+
 def pol_transform(pols):
     new_pols={}
     for t,pol in pols.items():
@@ -395,6 +326,8 @@ def pol_transform(pols):
                 if kk in new_pols.keys(): raise Exception(f"Already defined: \'{k}\'")
                 else: new_pols.update({kk:vv})
     return new_pols
+
+# Make a function that transform
 
 def make_moments(source,the_var):
     return [
