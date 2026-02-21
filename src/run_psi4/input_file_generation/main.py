@@ -24,7 +24,7 @@ def make_preamble(job: psi4_job):
 
     imports=[
             f"### Imports",
-            f"import time",
+            f"import time, datetime",
             f"import yaml",
             f"run_started_at=time.time()",
     ]
@@ -125,7 +125,9 @@ def psi4_input_single(
         f"try:",
         ind+f"start_{unique_tag.lower()}=time.time()",
         ind+f"run_job()",
-        *[ ind+x for x in store(job,('about_the_run','timings',f"Total Time for {unique_tag}"), f"start_{unique_tag.lower()}-time.time()")],
+        *[ ind+x for x in store(job,('about_the_run','timings',f"Total Time for {unique_tag}"), f"time.time() - start_{unique_tag.lower()}")],
+        f"except KeyboardInterrupt as ex: # if a worker is killed then clean up the scratch!",
+        ind+f"clean(); raise KeyboardInterrupt(f\"Job was interrupted by KeyboardInterrupt\")",
         f"finally: clean() # I allways want to clean up the scratch",
         # except KeyboardInterrupt as ex: # if a worker is killed then clean up the scratch!",
         # d+f"clean(); raise KeyboardInterrupt()",

@@ -5,6 +5,7 @@ from run_psi4.types.job import allowed_job_choices, psi4_job
 
 from run_psi4.execution_and_recovery.execute import execute_psi4_shell
 from run_psi4.input_file_generation.main import  psi4_input_single
+from qcp_global_utils.environment.file_handling import load_json_or_yaml, dump_content_to_file
 
     # total_charge    : int|None=None,
     # multiplicity    : int|None=None,
@@ -69,9 +70,26 @@ def psi4_run(
     job=psi4_input_single(job)
     input_and_storage_files.append( (job.files.input, job.files.storage) )
     if job.execute:
-        execute_psi4_shell(job.files.input, psi4_executable=job.executable)
+        ret_data=execute_psi4_shell(job.files.input, psi4_executable=job.executable)
+        if ret_data is not None:
+            try:
+                resources=ret_data.get('resources', None)
+                if resources is not None:
+                    data=load_json_or_yaml(job.files.storage)
+                    sec=data.get('about_the_run',{})
+                    sec['resource_usage']=resources
+                    data['about_the_run']=sec
+                    dump_content_to_file(data, job.files.storage)
+                else:
+                    warn(f"Did not get resource usage information from the shell command execution (this is unexpected, but not critical, so I will continue without this information)")
+            except Exception as ex:
+                warn(f"Problem in saving resource usage information to storage file: {ex}")
+        else:
+            warn(f"Did not get resource usage information from the shell command execution (this is unexpected, but not critical, so I will continue without this information)")
     else:
-        print(f"Wrote the instructions to {job.files.input}")
+        info(f"Wrote the instructions to {job.files.input}")
+
+    # append resource usage to the storage file (if available)
     # for geom in geoms:
     #     for f in methods:
     #         for b in basis_sets:

@@ -9,3 +9,5 @@ src/run_psi4/_version.py
 sandbox/**
 tests/test_new_parser/
 tests/export_envo/
+tests/check_errors/drop_info
+tests/check_errors/insufficient_memory

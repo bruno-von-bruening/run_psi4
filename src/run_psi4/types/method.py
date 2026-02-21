@@ -113,7 +113,7 @@ def method_setup_lines(method, geom, return_opts_var=False):
         )
     else:
         reference=f"'{method.reference}'"
-    the_options.update( func(scf_type=method.scf_type), reference=reference )
+    the_options.update( func(scf_type=method.scf_type), reference=(reference.upper() if not reference is None else None) )
 
     if method.dft_opts.do_ip_tuning:
         dft_options.update(dict(

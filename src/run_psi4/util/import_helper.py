@@ -70,4 +70,6 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)  # default; set to VERBOSE_LEVEL_NUM or logging.DEBUG for verbose output
 
 info = logger.info
-warn = logger.warning
+def warn(message, *args, **kwargs):
+    logger.warning(message, *args, **kwargs)
+    # print(f"WARNING: {message}")
