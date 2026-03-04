@@ -19,10 +19,13 @@ def post_hf_options(tag:method_types, scf_type:str):
     # https://psicode.org/psi4manual/1.4.0/autodir_options_c/globals__mp_type
     """ For MP and CC methods """
     if scf_type in ['cd','df']:
-        return {
+        di= {
                 f"{tag}_type": decorate_scf_type(scf_type),
                 f"scf_type": decorate_scf_type(scf_type),
                 }
+        if tag.lower().startswith('cc'):
+            di[f"mp2_type"]=decorate_scf_type(scf_type)
+        return di
     elif scf_type in ['conv']:
         return {
                 f"{tag}_type": decorate_scf_type(scf_type),

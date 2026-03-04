@@ -105,6 +105,7 @@ def method_setup_lines(method, geom, return_opts_var=False):
     else:
         raise ValueError(f"Method {method.method} not recognized!")
 
+
     if method.reference.lower()=='auto':
         if method.do_grac and geom.open_shell:
             raise Exception(f"Cannot do GRAC correction with open shell systems and automatic reference detection (UHF not possible with GRAC), please set reference explicitly!")
@@ -114,6 +115,13 @@ def method_setup_lines(method, geom, return_opts_var=False):
     else:
         reference=f"'{method.reference}'"
     the_options.update( func(scf_type=method.scf_type), reference=(reference.upper() if not reference is None else None) )
+
+    df_options={}
+    for ty in ['cc','mp2','scf']:
+        if f"{ty}_type" in the_options.keys():
+            if the_options[f"{ty}_type"].strip('\'\"').lower() in ['df']:
+                df_options[f"df_basis_{ty}"]=getattr(method.df_opts, f"df_basis_{ty}")
+
 
     if method.dft_opts.do_ip_tuning:
         dft_options.update(dict(
@@ -163,11 +171,16 @@ def method_setup_lines(method, geom, return_opts_var=False):
         set_opts=[
             f"dft_opts=dict(", *set_options(dft_options), ')',
         ]
+    if df_options:
+        set_opts=[
+            f"df_opts=dict(", *set_options(df_options), ')',
+        ]
     else: set_opts=[]
     set_opts+=[
         "opts=dict(", 
         *set_options(the_options),
         *([] if not dft_options else [indent+"**dft_opts"]),
+        *([] if not df_options else [indent+"**dict( (k,v) for k,v in df_opts.items() if v is not None ) "]),
         ")",
         'clean_options() # Set options to default (avoid bad surprises)',
         "set_options(opts)",
@@ -195,6 +208,20 @@ class dft_opts_model(BaseModel):
     do_ip_tuning: bool = False
     do_grac: bool = False
 # class psi4_method(myBaseModel):
+
+class df_settings_model(BaseModel):
+    df_basis_scf: str|None=None
+    df_basis_mp2: str|None=None
+    df_basis_cc: str|None=None
+    def __init__(self, input:None|str=None, **kwargs):
+        if input is not None:
+            for k in ['df_basis_scf','df_basis_mp2','df_basis_cc']:
+                if not k in kwargs.keys():
+                    kwargs[k]=input
+        super().__init__(
+            **kwargs
+        )
+
 class psi4_method(controller_model):
     #__example_values__=dict(
     __method_types__=method_types
@@ -209,7 +236,11 @@ class psi4_method(controller_model):
     scf_type : str='default'
     cd_thres : float=1.e-4 
     reference: Literal['AUTO','RHF','UHF','ROHF']='AUTO'
+
     dft_opts: dft_opts_model=dft_opts_model()
+    df_opts: df_settings_model=df_settings_model()
+
+    
 
 
 
@@ -262,6 +293,18 @@ class psi4_method(controller_model):
                 else: pass
             else:
                 kwargs[k]=v
+        
+        scf_type=kwargs.get('scf_type',None)
+        if scf_type:
+            if scf_type.lower().startswith('df'):
+                if not 'df_opts' in kwargs.keys():
+                    tag,*args= scf_type.split('_')
+                    assert tag.lower()=='df', f"scf_type {scf_type} not recognized, expected to start with 'df'"
+                    kwargs['scf_type']=tag
+                    assert len(args)==1, f"scf_type {scf_type} not recognized, expected format 'df_<type>'"
+                    df_sets=df_settings_model(args[0])
+                    kwargs['df_opts']=df_sets.model_dump()
+
         super().__init__(**kwargs)
         if self.scf_type.lower()=='default':
             method_type=self.method_type

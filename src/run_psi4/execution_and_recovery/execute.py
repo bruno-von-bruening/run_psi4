@@ -131,7 +131,7 @@ def execute_psi4_shell(input_file:pdtc_file, psi4_executable:str|None=None ):
         else:
             return f"Unknown error code {code}"
     def format_output(s:List[str]):
-        return '|'.join(s)
+        return '\n  |'.join(['']+s)
 
     if return_code != 0:
         if not debug:
@@ -142,7 +142,7 @@ def execute_psi4_shell(input_file:pdtc_file, psi4_executable:str|None=None ):
                 print(f"Cleaning failed with exception: {ex}")
         quit(f"Psi4 finished with return code {return_code}" +
             ( f"(hint=\'{interprete_code(return_code)}\')" if interprete_code(return_code) else "") +
-             f" (after {took_time:.3f} seconds):\n   stdout=\n{format_output(stdout)}  error=\n{format_output(stderr)}")
+             f" (after {took_time:.3f} seconds):\n   stdout={format_output(stdout)}  error={format_output(stderr)}")
     else:
         print(f"Psi4 finished successfully (total real time {took_time:.3f} seconds)")
 
