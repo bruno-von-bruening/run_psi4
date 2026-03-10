@@ -149,12 +149,22 @@ class psi4_job(psi4_job):
     def method_lines(self)->List[str]:
         lines=self.method.method_definitions( storage_var=self.var_names.storage )
 
-        method=self.method
-        if method.dft_opts.do_grac:
-            lines+=method.make_grac_lines(molecule_name=self.var_names.molecule_name, molecule_string=self.var_names.molecule_string)
+        compute_grac=False    
+        if self.method.dft_opts.do_grac:
+            if self.geom.ac_shift is not None:
+                lines+=self.method.provide_grac(self.geom.ac_shift)
+            else: compute_grac=True
 
-        if method.dft_opts.do_ip_tuning:
-            lines+= method.get_ip_tuned_omega(storage_var=self.var_names.storage)
+        if compute_grac or self.method.dft_opts.do_ip_tuning:
+            self.method.dft_opts.do_grac=False
+            base_opts,opt_var=self.method.method_setting_lines(self.geom, return_opts_var=True)
+            self.method.dft_opts.do_grac=True
+            lines+=base_opts
+            if compute_grac:
+                lines+=self.method.make_grac_lines(molecule_name=self.var_names.molecule_name, molecule_string=self.var_names.molecule_string)
+
+            if self.method.dft_opts.do_ip_tuning:
+                lines+=self.method.get_ip_tuned_omega(storage_var=self.var_names.storage)
 
         new_lines,opt_var=self.method.method_setting_lines(self.geom, return_opts_var=True)
         lines+=new_lines+[
@@ -168,5 +178,7 @@ class psi4_job(psi4_job):
                 f"# Basis set {self.method.basis_set} is not standard in psi4 distribution but requires augmentation through basis_set_exchange api" ]+[
                 *make_psi4_block(produce_augmentation(self.method.basis_set, elements=self.geom.atom_types), basis_name=self.method.basis_set)
             ]
+        if self.method.dft_opts.do_grac and compute_grac:
+            lines+= [ f"{self.var_names.storage}['grac_shift']={self.method._grac_shift_var}" ]
 
         return lines

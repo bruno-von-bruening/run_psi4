@@ -20,6 +20,7 @@ def process_method(method:str) -> Dict[str,str|bool]:
 
     method_tags=[]
     ret['method_corrections']=[]
+    
     for comp in components:
         if check_grac(comp):
             ret['do_grac']=True
@@ -40,29 +41,6 @@ def process_method(method:str) -> Dict[str,str|bool]:
     return ret
 
 
-@val_call
-def compute_grac_shift(
-    func_var, basis_set_var, molecule_name, molecule_string, charge=0, spin=1
-) -> Tuple[List[str],str]:
-    from run_psi4.main.input_writer import get_gs_energy, get_ionization_energy
-    neut_string, E_neut, wfn_neut = get_gs_energy(func_var, basis_set_var, molecule_name=molecule_name)
-    ion_string, E_ion, wfn_ion    = get_ionization_energy(func_var, basis_set_var, molecule_name=molecule_name, molecule_string=molecule_string)
-
-    # Compute the difference -> grac_shift
-    ac_var=f"AC_shift"
-    string=[ 
-            '# computing grac shift as IP+HOMO',
-            f"E_homo = float({wfn_neut}.epsilon_a_subset('AO', 'ALL').np[{wfn_neut}.nalpha()-1])",
-            f"IP = float({E_ion}) - float({E_neut})",
-            f"{ac_var} = IP + E_homo",
-    ]
-    store_string=[
-        f"# Store the values"
-        f"storage['results'].update({{ 'HOMO': E_homo, 'IP': IP , 'AC_SHIFT': {ac_var} }})",
-    ]
-
-    grac_string=neut_string+ion_string+string+store_string
-    return grac_string,ac_var
 
 @val_call
 def set_grac_shift(
@@ -129,7 +107,7 @@ def method_setup_lines(method, geom, return_opts_var=False):
         ))
     if method.dft_opts.do_grac:
         dft_options.update(dict(
-            DFT_GRAC_SHIFT=f"{method.grac_shift_var}",
+            DFT_GRAC_SHIFT=var_str(f"{method._grac_shift_var}"),
         ))
 
     # Print the options into the file
@@ -294,6 +272,9 @@ class psi4_method(controller_model):
                 kwargs['method_tag']=args[0]
         else:
             raise Exception(f"Passed more than one positional argument to psi4_method: {args}")
+
+        do_grac=new_kwargs.pop('do_grac', False)
+        do_ip_tuning=new_kwargs.pop('do_ip_tuning', False)
         for k,v in new_kwargs.items():
             if k in kwargs:
                 if kwargs[k]!=v:
@@ -314,6 +295,10 @@ class psi4_method(controller_model):
                     kwargs['df_opts']=df_sets.model_dump()
 
         super().__init__(**kwargs)
+        if do_grac:
+            self.dft_opts.do_grac=True
+        if do_ip_tuning:
+            self.dft_opts.do_ip_tuning=True
         if self.scf_type.lower()=='default':
             method_type=self.method_type
             if method_type in [method_types.MP, method_types.CC, method_types.CI]:
@@ -334,8 +319,8 @@ class var_str(str):
 class psi4_method(psi4_method):
     _func_var: str='method'
     _basis_set_var: var_str='basis_set'
-    _grac_shift_var: str="grac_shift"
-    _omega_var: str='omega'
+    _grac_shift_var: var_str="grac_shift"
+    _omega_var: var_str='omega'
     freeze_core : bool = True
     @property
     def basis_set_var(self):
@@ -365,20 +350,43 @@ class psi4_method(psi4_method):
         ]
 
     @val_call
-    def make_grac_lines(self, ac_shift:float|None=None, molecule_name:str|None=None, molecule_string:str|None=None) -> List[str] :
+    def compute_grac_shift(self,
+        func_var, basis_set_var, molecule_name, molecule_string, charge=0, spin=1
+    ) ->  List[str] :# Tuple[List[str],str]:
+        from run_psi4.main.input_writer import get_gs_energy, get_ionization_energy
+        neut_string, E_neut, wfn_neut = get_gs_energy(func_var, basis_set_var, molecule_name=molecule_name)
+        ion_string, E_ion, wfn_ion    = get_ionization_energy(func_var, basis_set_var, molecule_name=molecule_name, molecule_string=molecule_string)
+
+        # Compute the difference -> grac_shift
+        string=[ 
+                '# computing grac shift as IP+HOMO',
+                f"E_homo = float({wfn_neut}.epsilon_a_subset('AO', 'ALL').np[{wfn_neut}.nalpha()-1])",
+                f"IP = float({E_ion}) - float({E_neut})",
+                f"{self._grac_shift_var} = IP + E_homo",
+        ]
+        store_string=[
+            f"# Store the values"
+            f"storage['results'].update({{ 'HOMO': E_homo, 'IP': IP , 'AC_SHIFT': {self._grac_shift_var} }})",
+        ]
+
+        grac_string=neut_string+ion_string+string+store_string
+        return grac_string
+    
+    @val_call
+    def provide_grac(self, ac_shift:float):
         assert self.dft_opts.do_grac, "Requested to make grac string but was internally set false (something is wrong in code logic)"
-        if ac_shift:
-            grac_string=[f"# Using user provided AC shift of {ac_shift} (assumed to be in Hartree)"]
-            grac_lines, grac_var=set_grac_shift(ac_shift)
-            grac_string+=grac_lines
-            self.grac_shift_var=grac_var
-        else:
-            grac_string=[f"# No grac shift provided, computing HOMO and IP to get AC shift"]
-            assert molecule_name is not None, f"Provide moleucle name for grac shift calculation!"
-            assert molecule_string is not None, f"Provide moleucle string for grac shift calculation!"
-            grac_lines, grac_var=compute_grac_shift(self._func_var,self.basis_set_var, molecule_name, molecule_string)
-            self._grac_shift_var=grac_var
-            grac_string+=grac_lines
+        grac_string=[f"# Using user provided AC shift of {ac_shift} (assumed to be in Hartree)"]
+        grac_lines, grac_var=set_grac_shift(ac_shift)
+        grac_string+=grac_lines
+        self.grac_shift_var=grac_var
+        return 
+    @val_call
+    def make_grac_lines(self,  molecule_name:str|None=None, molecule_string:str|None=None) -> List[str] :
+        assert self.dft_opts.do_grac, "Requested to make grac string but was internally set false (something is wrong in code logic)"
+        grac_string=[f"# No grac shift provided, computing HOMO and IP to get AC shift"]
+        assert molecule_name is not None, f"Provide moleucle name for grac shift calculation!"
+        assert molecule_string is not None, f"Provide moleucle string for grac shift calculation!"
+        grac_string+=self.compute_grac_shift(self._func_var,self.basis_set_var, molecule_name, molecule_string)
         return grac_string
     @val_call
     def method_setting_lines(self, geom: geometry_model, return_opts_var:bool=False):
