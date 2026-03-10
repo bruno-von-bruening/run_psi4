@@ -20,13 +20,19 @@ def process_method(method:str) -> Dict[str,str|bool]:
 
     method_tags=[]
     ret['method_corrections']=[]
+    ret['method-prefix']=[]
     
     for comp in components:
         if check_grac(comp):
             ret['do_grac']=True
         elif check_ip_tuning(comp):
             ret['do_ip_tuning']=True
-        elif comp.lower() in ['v','d3bj','d','lrc','a','l']:
+        elif ( comp.lower() in ['cam','lrc','core','dsd','hjs','t','tuned']):
+            ret['method-prefix']+=[comp.lower()]
+        elif ( comp.lower() in ['v','d','lrc','a','l','nl','gga1','k','vwn','2x','hf','hx','so','rc04','sx','x','sol','dh','fc','fco','fcfo','fl'] or 
+            comp.lower().startswith('d3')     or
+            bool(re.match(r"[0-9]+[a-z]?", comp.lower()))
+        ):
             ret['method_corrections']+=[comp.lower()]
         else:
             method_tags.append(comp)
@@ -35,7 +41,7 @@ def process_method(method:str) -> Dict[str,str|bool]:
     if len(method_tags)==0:
         raise Exception(f"Cannot process method string {method}, no valid method found")
     elif len(method_tags)==1:
-        ret['method']='-'.join([method_tags[0]]+ret.pop('method_corrections'))
+        ret['method']='-'.join( ret.pop('method-prefix') +[method_tags[0]]+ret.pop('method_corrections'))
     else:
         raise Exception(f"Cannot process method string {method}, multiple method tags found: {method_tags}")
     return ret
