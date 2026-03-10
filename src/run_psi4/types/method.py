@@ -101,7 +101,7 @@ def method_setup_lines(method, geom, return_opts_var=False):
     elif meth==method_types.HF:    func=make_hf_options
     elif meth==method_types.DFT:   
         func=make_dft_options
-        dft_options=method.dft_opts.model_dump(exclude=['do_grac','do_ip_tuning'])
+        dft_options=method.dft_opts.form_dft_options()
     else:
         raise ValueError(f"Method {method.method} not recognized!")
 
@@ -167,20 +167,21 @@ def method_setup_lines(method, geom, return_opts_var=False):
 
     # Create the whole section
 
+    set_opts=[]
     if dft_options:
-        set_opts=[
+        set_opts+=[
             f"dft_opts=dict(", *set_options(dft_options), ')',
         ]
     if df_options:
-        set_opts=[
+        set_opts+=[
             f"df_opts=dict(", *set_options(df_options), ')',
         ]
     else: set_opts=[]
     set_opts+=[
         "opts=dict(", 
         *set_options(the_options),
-        *([] if not dft_options else [indent+"**dft_opts"]),
-        *([] if not df_options else [indent+"**dict( (k,v) for k,v in df_opts.items() if v is not None ) "]),
+        *([] if not dft_options else [indent+"**dft_opts,"]),
+        *([] if not df_options else [indent+"**dict( (k,v) for k,v in df_opts.items() if v is not None ), "]),
         ")",
         'clean_options() # Set options to default (avoid bad surprises)',
         "set_options(opts)",
@@ -196,20 +197,27 @@ def method_setup_lines(method, geom, return_opts_var=False):
     else:
         return lines
 
-class dft_opts_model(BaseModel):
+class dft_opts_model(controller_model):
     # DFT grid options # https://psicode.org/psi4manual/1.9.x/dft.html
     # one to one psi4 keywords
-    dft_radial_scheme: Literal['TREUTLER','BECKE', 'MULTIEXP', 'EM', 'MURA']='TREUTLER' # https://psicode.org/psi4manual/1.9.x/autodoc_glossary_options_c.html#term-DFT_RADIAL_SCHEME-SCF
-    dft_radial_points: int=75 # https://psicode.org/psi4manual/1.9.x/autodoc_glossary_options_c.html#term-DFT_RADIAL_POINTS-SCF
-    dft_spherical_points: int=302 # # https://psicode.org/psi4manual/1.9.x/autodoc_glossary_options_c.html#term-DFT_SPHERICAL_POINTS-SCF
-    dft_spherical_scheme: Literal['LEBEDEV']='LEBEDEV'
+    radial_scheme: Literal['TREUTLER','BECKE', 'MULTIEXP', 'EM', 'MURA']='TREUTLER' # https://psicode.org/psi4manual/1.9.x/autodoc_glossary_options_c.html#term-DFT_RADIAL_SCHEME-SCF
+    radial_points: int=75 # https://psicode.org/psi4manual/1.9.x/autodoc_glossary_options_c.html#term-DFT_RADIAL_POINTS-SCF
+    spherical_points: int=302 # # https://psicode.org/psi4manual/1.9.x/autodoc_glossary_options_c.html#term-DFT_SPHERICAL_POINTS-SCF
+    spherical_scheme: Literal['LEBEDEV']='LEBEDEV'
     # dft_pruning_scheme: Literal['ROBUST','TREUTLER']|None=None # https://psicode.org/psi4manual/1.9.x/autodoc_glossary_options_c.html#term-DFT_PRUNING_SCHEME-SCF
     # Other options
     do_ip_tuning: bool = False
     do_grac: bool = False
+    def form_dft_options(self):
+        base_di=self.model_dump(exclude=['do_ip_tuning','do_grac'])
+        base_di={ 'dft_'+k:v for k,v in base_di.items() if v is not None }
+        return dict(
+            **base_di,
+            # DFT_pruning_scheme=self.dft_pruning_scheme,
+        )
 # class psi4_method(myBaseModel):
 
-class df_settings_model(BaseModel):
+class df_settings_model(controller_model):
     df_basis_scf: str|None=None
     df_basis_mp2: str|None=None
     df_basis_cc: str|None=None

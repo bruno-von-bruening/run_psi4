@@ -36,7 +36,6 @@ from .job_settings import (
 class psi4_job(controller_model):
     __example_values__=dict(
         geom=example_geometry_entry,
-        method=psi4_method.example(),
     )
     jobtag : job_tags
     jobname : str|None=None
@@ -113,13 +112,16 @@ class psi4_job(controller_model):
             self.files.input=f"{self.jobname}.psi4inp"
     @classmethod
     def example(cls,**kwargs):
-
+        
 
         if not 'job_settings' in kwargs: no_settings_provided=True
 
         assert 'jobtag' in kwargs, "Please provide a jobtag to the example function of psi4_job"
         if no_settings_provided:
             kwargs['job_settings']=cls.get_settings_for_job_type( cls.recognized_job_types(kwargs['jobtag']) ).example()  
+
+        if not 'method' in kwargs or kwargs['method'] is None:
+            kwargs['method']=psi4_method.example()
         dat=super().example(**kwargs)
         # if no_settings_provided:
 
