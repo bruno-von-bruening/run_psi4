@@ -147,14 +147,18 @@ def store(job:psi4_job,path:tuple, target_var:str, update:bool=False):
 
 class psi4_job(psi4_job):
     def method_lines(self)->List[str]:
-        lines=[]
+
         from qcp_bsx_interface.augmentation.produce_augmentation import requires_augmentation, produce_augmentation, make_psi4_block
         if requires_augmentation(self.method.basis_set):
-            lines+= [ 
+            bas_lines= [ 
                 f""
                 f"# Basis set {self.method.basis_set} is not standard in psi4 distribution but requires augmentation through basis_set_exchange api" ]+[
                 *make_psi4_block(produce_augmentation(self.method.basis_set, elements=self.geom.atom_types), basis_name=self.method.basis_set)
             ]
+        else:
+            bas_lines=[]
+
+        lines=[]
         lines+=self.method.method_definitions( storage_var=self.var_names.storage )
 
         compute_grac=False    
@@ -166,8 +170,9 @@ class psi4_job(psi4_job):
         if compute_grac or self.method.dft_opts.do_ip_tuning:
             self.method.dft_opts.do_grac=False
             base_opts,opt_var=self.method.method_setting_lines(self.geom, return_opts_var=True)
+
             self.method.dft_opts.do_grac=True
-            lines+=base_opts
+            lines+=base_opts+bas_lines
             if compute_grac:
                 lines+=self.method.make_grac_lines(molecule_name=self.var_names.molecule_name, molecule_string=self.var_names.molecule_string)
 
@@ -181,5 +186,6 @@ class psi4_job(psi4_job):
         ]
         if self.method.dft_opts.do_grac and compute_grac:
             lines+= [ f"{self.var_names.storage}['grac_shift']={self.method._grac_shift_var}" ]
+        lines+=bas_lines    
 
         return lines
