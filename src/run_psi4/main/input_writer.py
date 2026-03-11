@@ -138,7 +138,7 @@ def get_gs_energy(func, basis, molecule_name='monomer', uks=False) ->Tuple[List[
         ref='rks'
     base_string= [
     f"set_options({{",
-    ind+f"\'basis\': {basis},",
+    # ind+f"\'basis\': {basis},",
     ind+f"'reference': '{ref}',",
     f"}})",
     ]
@@ -162,7 +162,7 @@ def get_ionization_energy(func_var, basis_set_var, molecule_name='monomer', mole
     {molecule_ion_name}.set_molecular_charge({molecule_name}.molecular_charge()+1)
     {molecule_ion_name}.set_multiplicity({molecule_name}.multiplicity()+1)
     set_options({{
-        'basis': {basis_set_var},
+    #    'basis': {basis_set_var},
         'reference': 'uks',
     }})
     {E_var},{wfn_var} = energy({func_var}, molecule={molecule_ion_name}, return_wfn=True)
