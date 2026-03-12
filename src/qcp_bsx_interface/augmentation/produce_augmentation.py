@@ -57,13 +57,22 @@ def make_psi4_block(basis_dict:dict, basis_name='custom') -> str:
     return new_bs_str
 
 def produce_augmentation(basis_name, elements:List[str]):
-    if not requires_augmentation(basis_name):
-        bs_dict = get_basis(basis_name, elements=elements)
-    else:
-        level = basis_name[0]
-        base = basis_name.replace(f'{level}-aug-','aug-')
-        old_bs_dict = get_basis(base, elements=elements)
-        bs_dict = geom_aug(old_bs_dict, augmentation_map[level], use_copy=True)
+    bs_dict=dict()
+    for el in elements:
+        if not requires_augmentation(basis_name):
+            bs_dict.update(get_basis(basis_name, elements=elements))
+        else:
+            # First character indicates augmentation level (has to be [d,t,q]-aug-) as checked by requires_augmentation
+            level = basis_name[0]
+            aug_level=augmentation_map[level]
+            base = basis_name.replace(f'{level}-aug-','aug-')
+            # For H the aug-cc-pc basis is not available (since there is no core) need to fix that here
+            if el.upper()=='H':
+                if re.match(r'.*cc-pcv',basis_name.lower()):
+                    base=base.lower().replace('cc-pcv','cc-pv')
+            
+            old_bs_dict = get_basis(base, elements=elements)
+            bs_dict.update(geom_aug(old_bs_dict, aug_level, use_copy=True))
 
     # Proper formatting (and removal of redundant contractions)
     new_bs_dict=modify_basis(bs_dict)
