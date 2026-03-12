@@ -29,7 +29,7 @@ def process_method(method:str) -> Dict[str,str|bool]:
             ret['do_ip_tuning']=True
         elif ( comp.lower() in ['cam','lrc','core','dsd','hjs','t','tuned']):
             ret['method-prefix']+=[comp.lower()]
-        elif ( comp.lower() in ['v','d','lrc','a','l','nl','gga1','k','vwn','2x','hf','hx','so','rc04','sx','x','sol','dh','fc','fco','fcfo','fl'] or 
+        elif ( comp.lower() in ['v','d','lrc','a','l','nl','gga1','k','vwn','2x','hx','so','rc04','sx','x','sol','dh','fc','fco','fcfo','fl'] or 
             comp.lower().startswith('d3')     or
             bool(re.match(r"[0-9]+[a-z]?", comp.lower()))
         ):
