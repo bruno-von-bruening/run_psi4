@@ -56,23 +56,37 @@ def make_psi4_block(basis_dict:dict, basis_name='custom') -> str:
     new_bs_str+=[f"}}"]
     return new_bs_str
 
-def produce_augmentation(basis_name, elements:List[str]):
-    bs_dict=dict()
-    for el in elements:
+def produce_augmentation(basis_name, elements:List[str|int]):
+    bss=[]
+    # if 'H' or 1 in elements then put it in the end
+    #el_sort=sorted(elements, key=lambda x: (x.upper()=='H' or x==1, x) )
+    el_covered=set()
+    for el in  elements:
+        if el in el_covered:
+            continue
+        el_covered.add(el)
         if not requires_augmentation(basis_name):
-            bs_dict.update(get_basis(basis_name, elements=elements))
+            bss.append(get_basis(basis_name, elements=elements))
         else:
             # First character indicates augmentation level (has to be [d,t,q]-aug-) as checked by requires_augmentation
             level = basis_name[0]
             aug_level=augmentation_map[level]
             base = basis_name.replace(f'{level}-aug-','aug-')
             # For H the aug-cc-pc basis is not available (since there is no core) need to fix that here
-            if el.upper()=='H':
+            if el.upper()=='H' or el==1:
                 if bool(re.match(r'.*cc-pcv.*',basis_name.lower())):
                     base=base.lower().replace('cc-pcv','cc-pv')
             
-            old_bs_dict = get_basis(base, elements=elements)
-            bs_dict.update(geom_aug(old_bs_dict, aug_level, use_copy=True))
+            old_bs_dict = get_basis(base, elements=[el])
+            bss.append(geom_aug(old_bs_dict, aug_level, use_copy=True))
+    # Now combine them
+    assert len(bss)>0, f"Did not produce any basis set augmentation for basis {basis_name} and elements {elements}"
+    bs_dict=bss[0] # take meta data from first entry
+    for b in bss[1:]:
+        for atty,el_data in b['elements'].items():
+            assert not atty in bs_dict['elements'], f"Unexpectedly found the same element {atty} in multiple basis sets (this should not happen since we are only augmenting one element at a time, but it seems to have happened here, so I will raise an error to avoid silently producing wrong results)"
+            bs_dict['elements'][atty]=el_data
+
 
     # Proper formatting (and removal of redundant contractions)
     new_bs_dict=modify_basis(bs_dict)
