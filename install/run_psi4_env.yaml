@@ -1,8 +1,8 @@
 name: run_psi4_newpar
 channels:
-   - conda-forge
-   - conda-forge/label/libint_dev
-   - defaults
+  - conda-forge
+  - conda-forge/label/libint_dev
+  - defaults
 dependencies:
   - python=3.10
   - numpy
@@ -10,9 +10,9 @@ dependencies:
   - dftd3-python
   - pip
   - pip:
-      - build
-      - rdkit
-      - rich
-      - basis_set_exchange
-      - git+ssh://git@github.com/bruno-von-bruening/qcp_global_utils.git@812919b6c
-      - git+ssh://git@github.com/bruno-von-bruening/qcp_objects.git@bc319ffc1
+    - build
+    - rdkit
+    - rich
+    - basis_set_exchange
+    - git+ssh://git@github.com/bruno-von-bruening/qcp_global_utils.git@c4106276e
+    - git+ssh://git@github.com/bruno-von-bruening/qcp_objects.git@bc319ffc1
