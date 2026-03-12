@@ -68,7 +68,7 @@ def produce_augmentation(basis_name, elements:List[str]):
             base = basis_name.replace(f'{level}-aug-','aug-')
             # For H the aug-cc-pc basis is not available (since there is no core) need to fix that here
             if el.upper()=='H':
-                if re.match(r'.*cc-pcv',basis_name.lower()):
+                if bool(re.match(r'.*cc-pcv.*',basis_name.lower())):
                     base=base.lower().replace('cc-pcv','cc-pv')
             
             old_bs_dict = get_basis(base, elements=elements)
