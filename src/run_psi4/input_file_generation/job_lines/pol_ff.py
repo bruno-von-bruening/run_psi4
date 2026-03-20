@@ -28,9 +28,9 @@ def make_functions(job:psi4_job):
     return lines
 
 def get_second_derivative(plus, minus, zero,delta):
-    return float(np.round( (plus-2*zero+minus)/delta**2  , 8))
+    return float(np.round( (plus-2*zero+minus)/delta**2  , 8)+0)  # add zero to avoid -0.0
 def get_first_derivative(plus, minus, delta):
-    return float(np.round((plus-minus)/(delta), 8))
+    return float(np.round((plus-minus)/(delta), 8)+0)  # add zero to avoid -0.0
 
 print_out=print
 def get_derivatives_from_energy(the_di,t, print_info=False):
@@ -55,9 +55,18 @@ def get_derivatives_from_moments(the_di,t):
     for k in set(list(plus['mom'].keys())+list(zero['mom'].keys()) ):
         assert k in plus['mom'].keys() and k in zero['mom'].keys()
         cur_pol.update({ 
-            k: np.array( -get_first_derivative(plus['mom'][k],zero['mom'][k], delta=delta/2) )
+            k: float(-get_first_derivative(plus['mom'][k],zero['mom'][k], delta=delta/2) + 0)
         })
     return cur_pol
+def get_derivatives_from_moments(first, second, delta):
+    """ Could also get second derivative """
+    pols=dict()
+    for k in set(list(first.keys())+list(second.keys()) ):
+        assert k in first.keys() and k in second.keys()
+        pols.update({ 
+            k: float(np.round(-get_first_derivative(first[k],second[k], delta=delta/2)/2,8) + 0) # divide by two according to definition of pols
+        })
+    return pols
 
 def get_moments(dummy): pass
 from .pol_ff_functions import nuclear_external_point_charge_energy
@@ -109,17 +118,26 @@ def perform_fd_calc(the_di):
         energies, moments, deltas = zip(*((e.get('E'), e.get('mom'), e.get('delta')) for e in entries))
         assert len(energies)==2, f"Expected 2 energy entries for plus and minus field, got {len(energies)} for tag {t} with entries {entries}"
         assert deltas[0]==-deltas[1], f"Expected deltas to be symmetric for plus and minus field, got {deltas} for tag {t} with entries {entries}"
+        
         pol_through_energy[f"{t}@{t}"] = -get_second_derivative( energies[0], energies[1], zero_di.get('E'), deltas[0]-zero_di.get('delta') ) # negative due to convention
         mom_through_energy[f"{t}"] = get_first_derivative( energies[0], energies[1], deltas[0]-deltas[1] )
+
 
         found=([ (x,delta) for x,delta in zip(moments, deltas) if not x is None])
         # If one do two simple FF if two do both sides (removes square term)
         if len(found)==0:
             pol_through_moments[f"{t}@{t}"] = None
-        elif len(found)==1:
-            pol_through_moments[f"{t}@{t}"] = get_first_derivative(found[0][0], zero_di['mom'], found[0][1]-zero_di['delta'])
-        elif len(found)==2:
-            pol_through_moments[f"{t}@{t}"] = get_first_derivative(found[0][0], found[1][0], found[0][1]-found[1][1])
+        elif len(found)>2:
+            raise Exception(f"Expected at most 2 moment entries for plus and minus field, got {len(found)} for tag {t} with entries {entries}")
+        else:
+            if len(found)==1:
+                delta=found[0][1]-zero_di['delta']
+                diffs= get_derivatives_from_moments(found[0][0], zero_di['mom'], delta)
+            elif len(found)==2:
+                delta=found[0][1]-found[1][1]
+                diffs= get_derivatives_from_moments(found[0][0], found[1][0], delta)
+            for d,v in diffs.items():
+                pol_through_moments[f"{d}@{t}"] = v
 
         # optionally get polarisabilities from moments if available
 
@@ -141,14 +159,6 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
     lines=[]
     func_lines=[]
     #    ([] if not job.method.method.lower().startswith('cc') else [ ind+f"cc_convergence={opts.cc_convergence},"]) 
-    lines+=[
-        f"# For HF reference calculation as I understand. Should be probably a bit tighter for finite field (possibly its even faster do to better guess?)",
-        f"e_convergence_val={job.job_settings.e_convergence}",
-        f"set_options(dict(",
-        ind+f"e_convergence=e_convergence_val, ",]+[
-        f"))",
-        *store(job, ('settings','e_convergence'),"e_convergence_val",),
-    ]
     # +( [] if not job.method.lower().startswith('cc') else [ f"set_options(dict( cc_convergence=1.e-12 ) )" ]
 
     func_lines+=make_functions(job)
@@ -175,7 +185,7 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
         *store(job, ('settings','ff_val_dip'),'delta_dip'),
         *store(job, ('settings','ff_val_qad'),'delta_qad'),
     ]
-    if len(job.geom.atom_types)==1:
+    if len(job.geom.atom_types)==1 and False:
         com=" # Single atom only need these elements"
         tags=['x','xx','xy']
     else:
@@ -212,10 +222,14 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
     ]
 
     # Evaluate moments for each
-    do_single_point_mom=job.method.can_do_gradient
+    from run_psi4.types.method import method_types
+    # For HF and DFT the density matrix is part of SCF and no reason not to evaluate methods
+    moments_for_free        = ( job.method.method_type in [ method_types.HF, method_types.DFT ] )
+    do_pol_mom              = ( job.method.can_do_gradient and job.job_settings.do_moments ) or moments_for_free
+    do_single_point_mom     = ( ( job.method.can_do_gradient and job.do_moments ) or moments_for_free ) or do_pol_mom # if moments for pol are available then also do it for single point (since it is basically free at that point)
+
     var_mem.update({f"ff_reg": 'ff_reg'}),
-# 
-    
+
 
     # make a list of dictionaries with ( <pot_tag>: ( delta=..., method1=(E:...,mom:....))'field': field_tag, 'deltas': [dots])
     lines+= [
@@ -226,10 +240,9 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
         f"fields=['zero']+tensor_elements",
         f"deltas=[ [0] ]+[ [1*(delta_dip if len(t)==1 else delta_qad),-1*(delta_dip if len(t)==1 else delta_qad)] for t in tensor_elements]",
         f"save_fchk=[ [True] ]+[ (False,False) for _ in tensor_elements]",
-        f"do_moms=[[ {str(do_single_point_mom)} ]"
-        +']+[ ' + ( f"[False, False]" if (job.job_settings.do_moments and job.method.can_do_gradient) else f"[False, False]" ) + ' for _ in tensor_elements]',
+        f"do_moms=[ [ {str(do_single_point_mom)} ] ] + [ [ {str(do_pol_mom)} ]*2 for _ in tensor_elements ]",
         *(store(job, ('settings','properties','did_zero_moms'), str(do_single_point_mom)) ),
-        *(store(job, ('settings','properties','did_fd_moms'), str(job.job_settings.do_moments and job.method.can_do_gradient)) ),
+        *(store(job, ('settings','properties','did_fd_moms'), str(do_pol_mom)) ),
         f"number_of_calculations= 1 + 2*len(tensor_elements) # zero plus positive and negative for each element",
         #
         f"# Evaluate wfn in external potential",
@@ -326,7 +339,9 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
     if do_single_point_mom:
         lines+=[
             f"# Optionally store the moments as well (only for single point with gradient available, as we only get the moments for the positive field, which are not suitable for finite difference derivatives but may be interesting on their own)",
-            *(store(job,path+('MolMom_from_dens',), f"raw_di['MAIN']['zero'][0]['mom']")),
+            f"zero_mom=raw_di['MAIN']['zero'][0]['mom']",
+            f"if zero_mom is not None: zero_mom = dict( (k, float(np.round(v,8)+0)) for k,v in zero_mom.items() ) # round and add zero to avoid -0.0",
+            *(store(job,path+('MolMom_from_dens',), f"zero_mom")),
         ]
 
 

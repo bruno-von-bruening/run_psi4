@@ -65,15 +65,13 @@ def method_setup_lines(method, geom, return_opts_var=False):
 
     meth=method.method_type
 
+    # Basis options
     the_options=dict(
         basis=method.basis_set_var,
-        e_convergence=(1.e-6, f"psi4.default"),
-        d_convergence=(1.e-6, f"psi4.default"),
         freeze_core=(method.freeze_core, f"Freeze core is significantly cheaper and little impact on e.g. polarizabilities"),
         nat_orbs=(method.fno, f"Freeze natural orbitals"),
         occ_tolerance=(method.fno_thres if method.fno else 0, f"Freeze natural orbitals threshold"),
         cholesky_tolerance=(method.cd_thres, f"Cholesky decomposition threshold (only relevant for type='cd')"),
-        # 
     )
     # On frozen natural orbitals: https://psicode.org/psi4manual/1.9.x/fnocc.html
 
@@ -89,6 +87,9 @@ def method_setup_lines(method, geom, return_opts_var=False):
     else:
         raise ValueError(f"Method {method.method} not recognized!")
 
+    conv_opts=method.convergence.model_dump()
+    if meth in [ method_types.HF, method_types.DFT ]:
+        conv_opts.pop('r_convergence', None) # Remove r_convergence for HF and DFT since it is not relevant for these methods
 
     if method.reference.lower()=='auto':
         if method.do_grac and geom.open_shell:
@@ -151,21 +152,24 @@ def method_setup_lines(method, geom, return_opts_var=False):
 
     # Create the whole section
 
+
+    # Create the sub options
     set_opts=[]
-    if dft_options:
-        set_opts+=[
-            f"dft_opts=dict(", *set_options(dft_options), ')',
-        ]
-    if df_options:
-        set_opts+=[
-            f"df_opts=dict(", *set_options(df_options), ')',
-        ]
-    else: set_opts=[]
+    for opt, name in zip(
+        [ dft_options, df_options, conv_opts],
+        [ 'dft','df','conv']
+    ):
+        if opt:
+            set_opts+=[
+                f"{name}_opts=dict(", *set_options(opt), ')',
+            ]
+
     set_opts+=[
         "opts=dict(", 
         *set_options(the_options),
         *([] if not dft_options else [indent+"**dft_opts,"]),
         *([] if not df_options else [indent+"**dict( (k,v) for k,v in df_opts.items() if v is not None ), "]),
+        *([] if not conv_opts else [indent+"**conv_opts,"]),
         ")",
         'clean_options() # Set options to default (avoid bad surprises)',
         "set_options(opts)",
@@ -214,11 +218,23 @@ class df_settings_model(controller_model):
             **kwargs
         )
 
+class convergence_model(controller_model):
+    e_convergence: float=1.e-6 # Energy convergence
+    d_convergence: float=1.e-6 # Density matrix convergence
+    r_convergence: float=1.e-6 # RMS convergence of amplitudes
+
+ReferenceType = Annotated[
+    Literal['AUTO', 'RHF', 'UHF', 'ROHF'],
+    BeforeValidator(lambda v: v.upper() if isinstance(v, str) else v)
+]
+# Make method uppercase!
+MethodType=Annotated[ str, BeforeValidator(lambda v: v.upper() if isinstance(v, str) else v) ]
+
 class psi4_method(controller_model):
     #__example_values__=dict(
     __method_types__=method_types
-    method_tag:str
-    method: str
+    method_tag: MethodType
+    method: MethodType
     basis_set: str
     freeze_core: bool = True
     fno: bool = False # Freeze natural orbitals threshold (any value not None or zero activates it)
@@ -227,14 +243,11 @@ class psi4_method(controller_model):
 
     scf_type : str='default'
     cd_thres : float=1.e-4 
-    reference: Literal['AUTO','RHF','UHF','ROHF']='AUTO'
+    reference: ReferenceType = 'AUTO'
 
     dft_opts: dft_opts_model=dft_opts_model()
     df_opts: df_settings_model=df_settings_model()
-
-    
-
-
+    convergence: convergence_model=convergence_model()
 
     # scf_type: str='df'
 

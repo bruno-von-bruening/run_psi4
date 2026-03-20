@@ -52,9 +52,9 @@ def make_preamble(job: psi4_job):
 from .job_lines.pol_ff_functions import store
 
 class JobTagMapper:
-    POLARIZ = 'POLARIZ_LR'
+    POLARIZ = 'POLARIZ-LR'
     SP = 'SP'
-    POLARIZ_FF = 'POLARIZ_FF'
+    POLARIZ_FF = 'POLARIZ-FF'
     OPT = 'OPT'
 
     _tags = {
@@ -116,6 +116,9 @@ def psi4_input_single(
     else:
         raise Exception(f"Job tag not handled yet: {unique_tag}")
 
+    # For variable name (like to have - for file names but _ for variable names)
+    unique_tag_code=unique_tag.replace('-','_').lower()
+
     job_lines = [
         '# Starting job',
         f"def run_job():",
@@ -123,9 +126,9 @@ def psi4_input_single(
         f"",
         f"# Execute the job",
         f"try:",
-        ind+f"start_{unique_tag.lower()}=time.time()",
+        ind+f"start_{unique_tag_code}=time.time()",
         ind+f"run_job()",
-        *[ ind+x for x in store(job,('about_the_run','timings',f"Total Time for {unique_tag}"), f"time.time() - start_{unique_tag.lower()}")],
+        *[ ind+x for x in store(job,('about_the_run','timings',f"Total Time for {unique_tag}"), f"time.time() - start_{unique_tag_code}")],
         f"except KeyboardInterrupt as ex: # if a worker is killed then clean up the scratch!",
         ind+f"clean(); raise KeyboardInterrupt(f\"Job was interrupted by KeyboardInterrupt\")",
         f"finally: clean() # I allways want to clean up the scratch",

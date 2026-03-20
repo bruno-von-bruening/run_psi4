@@ -75,9 +75,13 @@ def nuclear_external_point_charge_energy(wfn):
     """
 
     # Correction not needed for HF like methods
-    method = wfn.name().upper()
-    if not any( method.startswith(x) for x in ["MP",'CC']):
+    method = wfn.name()
+    if not any( method.upper().startswith(x) for x in ["MP",'CC']):
         return 0
+    elif method.upper().startswith('MP'):
+        if get_global_option("MP2_TYPE") not in ['df']:
+            return 0
+    
 
     # External charges (if none, Psi4 returns empty arrays)
     pot=wfn.external_pot()

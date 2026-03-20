@@ -15,9 +15,9 @@ class file_names(BaseModel):
     fchk: str|None=None
 
 class job_tags(str, Enum):
-    POLARIZ_LR = 'POLARIZ_LR'
+    POLARIZ_LR = 'POLARIZ-LR'
     SP = 'SP'
-    POLARIZ_FF = 'POLARIZ_FF'
+    POLARIZ_FF = 'POLARIZ-FF'
     OPT = 'OPT'
 
 
