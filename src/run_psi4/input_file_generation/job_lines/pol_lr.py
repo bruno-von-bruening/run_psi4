@@ -22,7 +22,7 @@ def prop_calc(job:psi4_job):
     return [
     "# perform polarizability calculation",
     (
-        "props = ['DIPOLE POLARIZABILITIES','QUADRUPOLE_POLARIZABILITIES']" # if job.method_type!=method_types.cc else f"['{job.method.method']",
+        "props = ['DIPOLE_POLARIZABILITIES','QUADRUPOLE_POLARIZABILITIES']" # if job.method_type!=method_types.cc else f"['{job.method.method']",
         if not job.method.method_type in [ method_types.CC ] else f"props=['POLARIZABILITY']"
     ),
     f"E, wfn = properties(method, molecule={job.var_names.molecule_name}, properties= props, return_wfn=True)",
