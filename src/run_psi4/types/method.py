@@ -92,7 +92,7 @@ def method_setup_lines(method, geom, return_opts_var=False):
         conv_opts.pop('r_convergence', None) # Remove r_convergence for HF and DFT since it is not relevant for these methods
 
     if method.reference.lower()=='auto':
-        if method.do_grac and geom.open_shell:
+        if method.dft_opts.do_grac and geom.open_shell:
             raise Exception(f"Cannot do GRAC correction with open shell systems and automatic reference detection (UHF not possible with GRAC), please set reference explicitly!")
         reference=(
                 '\'uhf\'' if (geom.open_shell) else '\'rhf\''
@@ -219,9 +219,10 @@ class df_settings_model(controller_model):
         )
 
 class convergence_model(controller_model):
-    e_convergence: float=1.e-6 # Energy convergence
-    d_convergence: float=1.e-6 # Density matrix convergence
-    r_convergence: float=1.e-6 # RMS convergence of amplitudes
+    e_convergence:  float=1.e-6 # Energy convergence
+    d_convergence:  float=1.e-6 # Density matrix convergence
+    r_convergence:  float=1.e-6 # RMS convergence of amplitudes
+    maxiter:        int=100 # Default psi4 value
 
 ReferenceType = Annotated[
     Literal['AUTO', 'RHF', 'UHF', 'ROHF'],
@@ -236,7 +237,7 @@ class psi4_method(controller_model):
     method_tag: MethodType
     method: MethodType
     basis_set: str
-    freeze_core: bool = True
+    freeze_core: bool = False
     fno: bool = False # Freeze natural orbitals threshold (any value not None or zero activates it)
     fno_thres: float=1.e-6
     # The 
@@ -307,11 +308,12 @@ class psi4_method(controller_model):
             if scf_type.lower().startswith('df'):
                 if not 'df_opts' in kwargs.keys():
                     tag,*args= scf_type.split('_')
-                    assert tag.lower()=='df', f"scf_type {scf_type} not recognized, expected to start with 'df'"
-                    kwargs['scf_type']=tag
-                    assert len(args)==1, f"scf_type {scf_type} not recognized, expected format 'df_<type>'"
-                    df_sets=df_settings_model(args[0])
-                    kwargs['df_opts']=df_sets.model_dump()
+                    if len(args)>0:
+                        assert tag.lower()=='df', f"scf_type {scf_type} not recognized, expected to start with 'df'"
+                        kwargs['scf_type']=tag
+                        assert len(args)==1, f"scf_type {scf_type} not recognized, expected format 'df_<type>'"
+                        df_sets=df_settings_model(args[0])
+                        kwargs['df_opts']=df_sets.model_dump()
 
         super().__init__(**kwargs)
         if do_grac:
@@ -358,6 +360,9 @@ class psi4_method(psi4_method):
             re.match(x, self.method.lower()) and self.scf_type.lower() in ['conv','cd']
             for x in forbidden
         ) else True
+    @property
+    def mos_implicit(self)->bool:
+        return self.method_type in [method_types.HF, method_types.DFT]
     @val_call
     def method_definitions(self, storage_var:str) -> List[str]:
         assert self.basis_set!='', "Basis set cannot be empty string!"

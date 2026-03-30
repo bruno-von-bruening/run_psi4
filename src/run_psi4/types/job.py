@@ -2,6 +2,8 @@ from . import *
 from .geom import geometry, geometry_wrapper
 from .machine_settings import machine_settings, my_machine_settings
 from .method import psi4_method
+from qcp_bsx_interface.bs_modification.process_basis import (
+    make_psi4_block, bs_requires_modification, modify_bs )
 
 
 class variable_names(BaseModel):
@@ -148,12 +150,13 @@ def store(job:psi4_job,path:tuple, target_var:str, update:bool=False):
 class psi4_job(psi4_job):
     def method_lines(self)->List[str]:
 
-        from qcp_bsx_interface.augmentation.produce_augmentation import requires_augmentation, produce_augmentation, make_psi4_block
-        if requires_augmentation(self.method.basis_set):
+        # if requires_augmentation(self.method.basis_set):
+        if bs_requires_modification(self.method.basis_set):
+            basis_dict=modify_bs(self.method.basis_set, elements=self.geom.atom_types)
             bas_lines= [ 
                 f""
                 f"# Basis set {self.method.basis_set} is not standard in psi4 distribution but requires augmentation through basis_set_exchange api" ]+[
-                *make_psi4_block(produce_augmentation(self.method.basis_set, elements=self.geom.atom_types), basis_name=self.method.basis_set)
+                *make_psi4_block(basis_dict, basis_name=f"{self.method.basis_set}")
             ]
         else:
             bas_lines=[]
@@ -189,3 +192,5 @@ class psi4_job(psi4_job):
         lines+=bas_lines    
 
         return lines
+    def store(self,*args,**kwargs):
+        return store(self,*args,**kwargs)

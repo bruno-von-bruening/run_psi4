@@ -3,7 +3,7 @@ from . import *
 from qcp_global_utils.shell_processes.execution import run_shell_command
 
 @val_call
-def execute_psi4_shell(input_file:pdtc_file, psi4_executable:str|None=None ):
+def execute_psi4_shell(input_file:pdtc_file, psi4_executable:str|None=None, verbose:int=0 ):
     
     import subprocess
     if psi4_executable is None:
@@ -87,23 +87,29 @@ def execute_psi4_shell(input_file:pdtc_file, psi4_executable:str|None=None ):
                 disk_avr_in_GB=0,
                 n=1
             )
-        clean_file=find_clean_file()
-        with open(clean_file,'r') as rd:
-            files=[ x.strip() for x in rd.readlines()]
-        if len(files)>0:
-            files+=get_checkpoint_file( files[0].split('.')[1] )
-        # aggregate the size of these files
-        cur_data=0
-        for file in files:
-            try:
-                cur_data += os.path.getsize(file) / (1024**3)
-            except Exception as ex:
-                pass # pretty normal since files may have been deleted after reading them
-                # warn(f"Problem in getting size of file {file}: {ex}")
-        if cur_data > data['disk_max_in_GB']:
-            data['disk_max_in_GB']=cur_data
+        try:
+            clean_file=find_clean_file()
+        except Exception as ex:
+            if verbose>0:
+                warn(f"Could not find clean file in periodic check: {ex}")
+            clean_file=None
+        if clean_file:
+            with open(clean_file,'r') as rd:
+                files=[ x.strip() for x in rd.readlines()]
+            if len(files)>0:
+                files+=get_checkpoint_file( files[0].split('.')[1] )
+            # aggregate the size of these files
+            cur_data=0
+            for file in files:
+                try:
+                    cur_data += os.path.getsize(file) / (1024**3)
+                except Exception as ex:
+                    pass # pretty normal since files may have been deleted after reading them
+                    # warn(f"Problem in getting size of file {file}: {ex}")
+            if cur_data > data['disk_max_in_GB']:
+                data['disk_max_in_GB']=cur_data
 
-        data['disk_avr_in_GB']=data['disk_avr_in_GB']*(data['n']-1)/data['n'] + cur_data/data['n']
+            data['disk_avr_in_GB']=data['disk_avr_in_GB']*(data['n']-1)/data['n'] + cur_data/data['n']
         data['n']+=1
         return data 
     try:
