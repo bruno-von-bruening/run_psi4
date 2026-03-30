@@ -2,6 +2,7 @@ build/
 dist/
 back/
 **.egg-info/
+**/__pycache__/
 
 tests/basic_tests/**/*
 !tests/basic_tests/**/*.sh
