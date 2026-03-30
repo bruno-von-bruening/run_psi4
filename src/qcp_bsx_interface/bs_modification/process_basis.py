@@ -83,12 +83,12 @@ def make_psi4_block(bases: Dict[str,list|Dict[str,Any]], basis_name='custom') ->
                     assert not el in el_to_basis, f"Element {el} appears in multiple basis sets, which is not supported (each element can only be augmented once, so if you want to augment an element with multiple basis sets, you need to call produce_augmentation multiple times)."
                     el_to_basis[el_form(el)]=k
         return el_to_basis
-    def custom_basis_set_declaration_lines(el_to_bs):
+    def custom_basis_set_declaration_lines(bs_di):
         custom_bs_lines=[]
-        for el,bs in el_to_bs.items():
-            if isinstance(bases_work[bs], dict):
+        for bs,v in bs_di.items():
+            if isinstance(v, dict):
                 custom_bs_lines+=[f"[{bs}]"]
-                custom_bs_lines+=make_basis_str(bases_work[bs])
+                custom_bs_lines+=make_basis_str(v)
         return custom_bs_lines
     
     # add custom prefix for custom basis sets
@@ -98,7 +98,7 @@ def make_psi4_block(bases: Dict[str,list|Dict[str,Any]], basis_name='custom') ->
     assert len(el_to_basis)>=len(bases), f"Number of elements covered by basis sets ({len(el_to_basis)}) is less than number of basis sets provided ({len(bases)}), which is not expected since each basis set should cover at least one element. Please check the input basis sets and make sure they are correctly formatted and that each basis set covers at least one element."
 
     # This will be the explicit declaration of basis sets
-    custom_declaration=custom_basis_set_declaration_lines(el_to_basis)
+    custom_declaration=custom_basis_set_declaration_lines(bases_work)
     assignments=[
         f"basis {basis_name.replace('-','_')} {{", # identifier of the compounded basis sets
         # Assignment of basis sets to each element
