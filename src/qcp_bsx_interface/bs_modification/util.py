@@ -41,6 +41,7 @@ KNOWN_PARTICLES=dict(
     conditional_core_polarization = [r'\-wc\dr', r'\-c\dr'], # integer tells which row # THE MINUS is essential (otherwise latter may match first!)
     augmentation=[HIGHER_AUG_REGEX,'aug'],
     dunning_stem=[r'cc-pv(wc|c)?[d,t,q,5,6]z'],
+    ri=[r'\-ri']
 )
 
 def basis_recognized(basis_name) -> None:

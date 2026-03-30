@@ -147,19 +147,16 @@ def store(job:psi4_job,path:tuple, target_var:str, update:bool=False):
             f".update({target_var})"
         ) ]
 
+                        # ind=4*' '
+                        # df_bs_lines+=[
+                        #     f"{k} {{",
+                        #     ind+f"assign {v}",
+                        #     f"}}"
+                        # ]
 class psi4_job(psi4_job):
     def method_lines(self)->List[str]:
 
-        # if requires_augmentation(self.method.basis_set):
-        if bs_requires_modification(self.method.basis_set):
-            basis_dict=modify_bs(self.method.basis_set, elements=self.geom.atom_types)
-            bas_lines= [ 
-                f""
-                f"# Basis set {self.method.basis_set} is not standard in psi4 distribution but requires augmentation through basis_set_exchange api" ]+[
-                *make_psi4_block(basis_dict, basis_name=f"{self.method.basis_set}")
-            ]
-        else:
-            bas_lines=[]
+        bas_lines=self.method.basis_set_lines( atom_types=self.geom.atom_types )
 
         lines=[]
         lines+=self.method.method_definitions( storage_var=self.var_names.storage )
@@ -189,7 +186,8 @@ class psi4_job(psi4_job):
         ]
         if self.method.dft_opts.do_grac and compute_grac:
             lines+= [ f"{self.var_names.storage}['grac_shift']={self.method._grac_shift_var}" ]
-        lines+=bas_lines    
+        # Add basis set specification if needed
+        lines+=bas_lines
 
         return lines
     def store(self,*args,**kwargs):

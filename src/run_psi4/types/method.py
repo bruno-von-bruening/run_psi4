@@ -1,6 +1,8 @@
 from . import *
 from run_psi4.types.geom import geometry_model
 from run_psi4.config.auto_options import method_types, get_method_flags, make_cc_options,make_ci_options,make_dft_options,make_hf_options,make_mp_options, make_mp_options_gen
+from qcp_bsx_interface.bs_modification.process_basis import bs_requires_modification
+from qcp_bsx_interface.bs_modification.process_basis import modify_bs,make_psi4_block
 
 def check_grac(comp):
     return  comp.upper() in ['GRAC']
@@ -164,11 +166,15 @@ def method_setup_lines(method, geom, return_opts_var=False):
                 f"{name}_opts=dict(", *set_options(opt), ')',
             ]
 
+    df_exclude=[ x for x in df_options.values() if bs_requires_modification(x) ]
+    df_exclude_str=( f" and not v in {df_exclude} # they are custom so have to be set expliclity" if len(df_exclude)>0 else "" )
     set_opts+=[
         "opts=dict(", 
         *set_options(the_options),
         *([] if not dft_options else [indent+"**dft_opts,"]),
-        *([] if not df_options else [indent+"**dict( (k,v) for k,v in df_opts.items() if v is not None ), "]),
+        *([] if not df_options else [indent+"**dict( (k,v) for k,v in df_opts.items() ",
+                                     2*indent+f"if not v is None {df_exclude_str}",
+                                     indent+f"), "]),
         *([] if not conv_opts else [indent+"**conv_opts,"]),
         ")",
         'clean_options() # Set options to default (avoid bad surprises)',
@@ -184,6 +190,7 @@ def method_setup_lines(method, geom, return_opts_var=False):
         return lines, 'opts'
     else:
         return lines
+
 
 class dft_opts_model(controller_model):
     # DFT grid options # https://psicode.org/psi4manual/1.9.x/dft.html
@@ -331,6 +338,57 @@ class psi4_method(controller_model):
         elif self.scf_type.lower()=='conv' and self.method_type in [method_types.HF, method_types.DFT]:
             warn(f"SCF type 'conv' is not a valid key for HF and DFT methods! Automatically changing to 'pk'.")
             self.scf_type='pk' # was important when inherting settings from e.g. ccsd
+    def necessary_df_bs(self)->List[str]:
+        if self.method_type in [method_types.HF, method_types.DFT]:
+            req=['scf']
+        elif self.method_type==method_types.MP:
+            req=['scf',self.method_tag.lower()]
+        elif self.method_type==method_types.CC:
+            req=['scf','mp2','cc']
+        else:
+            raise NotImplementedError(f"Method type {self.method_type} not recognized for determining necessary df basis sets!")
+        keys=set( f"df_basis_{k}" for k in req )
+        return dict( (k,getattr(self.df_opts, k)) for k in keys )
+
+    
+    def basis_set_lines(self, atom_types: List[str])->List[str]:
+        # if requires_augmentation(self.method.basis_set):
+        if bs_requires_modification(self.basis_set):
+            basis_dict=modify_bs(self.basis_set, elements=atom_types)
+            bas_lines= [ 
+                f""
+                f"# Basis set {self.basis_set} is not standard in psi4 distribution but requires augmentation through basis_set_exchange api" ]+[
+                *make_psi4_block(basis_dict, basis_name=f"{self.basis_set}")
+            ]
+        else:
+            bas_lines=[]
+        
+        df_bs_lines=[]
+        if self.scf_type.lower()=='df':
+            df_basis_sets=self.necessary_df_bs()
+            df_bs_needed=set()
+            for df_type,bs_nam in df_basis_sets.items():
+                if bs_requires_modification(bs_nam):
+                    df_bs_needed.add(bs_nam)
+            if len(df_bs_needed)>0:
+                # psi4 requires expliclity section of defining df basis sets
+                # for bs_nam in df_bs_needed:
+                #     basis_dict=modify_bs(bs_nam, elements=self.geom.atom_types)
+                #     df_bs_lines+= [ 
+                #         *make_psi4_block(basis_dict, basis_name=f"{bs_nam}")
+                #     ]
+                # df_bs_lines=[ 
+                #     '',
+                #     f"# DF basis sets {df_bs_needed} are non standard and will be hence defined specifially below",
+                #     *df_bs_lines
+                # ]
+                for k,v in df_basis_sets.items():
+                    if v in df_bs_needed:
+                        basis_dict=modify_bs(bs_nam, elements=atom_types)
+                        df_bs_lines+= [ 
+                            *make_psi4_block(basis_dict, basis_name=f"{k}")
+                        ]
+        return bas_lines+df_bs_lines
 
 class var_str(str):
     pass
