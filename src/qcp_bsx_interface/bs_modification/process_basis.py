@@ -46,7 +46,10 @@ def modify_bs(basis_name: recognized_basis, elements: List[str|int]) -> Dict:
 
 
 @val_call
-def make_psi4_block(bases: Dict[str,list|Dict[str,Any]], basis_name='custom') -> List[str]:
+def make_psi4_block(bases: Dict[str,list|Dict[str,Any]], basis_name='custom', is_df_basis:bool=False) -> List[str]:
+    """
+    The df_basis surpresses printing basis which does create a new basis which will not be used instead of changing the 
+    df_basis!"""
 
     ind=4*' '
     
@@ -100,7 +103,7 @@ def make_psi4_block(bases: Dict[str,list|Dict[str,Any]], basis_name='custom') ->
     # This will be the explicit declaration of basis sets
     custom_declaration=custom_basis_set_declaration_lines(bases_work)
     assignments=[
-        f"basis {basis_name.replace('-','_')} {{", # identifier of the compounded basis sets
+        (f"basis" if not is_df_basis else "")+f"{basis_name.replace('-','_')} {{", # identifier of the compounded basis sets
         # Assignment of basis sets to each element
         *[ ind + f"assign {nuclear_charge_to_element_symbol(el) if isinstance(el, int) else el} {bs}" for el,bs in el_to_basis.items()],
         # Explicit declaration of custom basis sets (if any)

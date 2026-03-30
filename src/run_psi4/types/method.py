@@ -386,7 +386,7 @@ class psi4_method(controller_model):
                     if v in df_bs_needed:
                         basis_dict=modify_bs(bs_nam, elements=atom_types)
                         df_bs_lines+= [ 
-                            *make_psi4_block(basis_dict, basis_name=f"{k}")
+                            *make_psi4_block(basis_dict, basis_name=f"{k}", is_df_basis=True)
                         ]
         return bas_lines+df_bs_lines
 
