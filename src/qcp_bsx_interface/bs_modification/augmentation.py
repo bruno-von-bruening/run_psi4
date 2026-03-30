@@ -41,10 +41,13 @@ def produce_augmentation(basis_name: List[str] | str, elements: List[str | int])
 
     # Now combine them
     assert len(bss)>0, f"Did not produce any basis set augmentation for basis {basis_name} and elements {elements}"
-    bs_dict=bss[0] # take meta data from first entry
-    for b in bss[1:]:
-        for atty,el_data in b['elements'].items():
-            assert not atty in bs_dict['elements'], f"Unexpectedly found the same element {atty} in multiple basis sets (this should not happen since we are only augmenting one element at a time, but it seems to have happened here, so I will raise an error to avoid silently producing wrong results)"
-            bs_dict['elements'][atty]=el_data
+
+    for i,(k,v) in enumerate(bss.items()):
+        if i==0:
+            bs_dict=v # take meta data from first entry
+        else:
+            for atty,el_data in v['elements'].items():
+                assert not atty in bs_dict['elements'], f"Unexpectedly found the same element {atty} in multiple basis sets (this should not happen since we are only augmenting one element at a time, but it seems to have happened here, so I will raise an error to avoid silently producing wrong results)"
+                bs_dict['elements'][atty]=el_data
 
     return bs_dict
