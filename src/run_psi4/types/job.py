@@ -115,7 +115,6 @@ class psi4_job(controller_model):
     @classmethod
     def example(cls,**kwargs):
         
-
         if not 'job_settings' in kwargs: no_settings_provided=True
 
         assert 'jobtag' in kwargs, "Please provide a jobtag to the example function of psi4_job"

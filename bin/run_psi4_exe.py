@@ -17,6 +17,7 @@ _config_file_default='run_psi4_config.yaml'
 
 from run_psi4.util.import_helper import logger, logging, VERBOSE_LEVEL_NUM
 
+
 def main():
     description=None
     epilog='\n'.join([
@@ -46,8 +47,16 @@ def main():
          action='store_true', help=f"Open the config file in vim after creating it (only when creating example config file)")
     add(  '--geom', '-g', 
         type=str, help=f"Geometry to include in input file")
-
+    add( '--version_info','-vinfo', action='store_true')
     args=par.parse_args()
+
+    print_version_info=args.version_info
+    if print_version_info:
+        from run_psi4._version import __commit_id__
+        import run_psi4
+        print(f"{run_psi4.__name__} {__commit_id__}")
+        return None
+
 
     if args.verbose:
         logger.setLevel(VERBOSE_LEVEL_NUM)

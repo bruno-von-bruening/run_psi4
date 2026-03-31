@@ -16,3 +16,4 @@ dependencies:
     - basis_set_exchange
     - git+ssh://git@github.com/bruno-von-bruening/qcp_global_utils.git@c4106276e
     - git+ssh://git@github.com/bruno-von-bruening/qcp_objects.git@bc319ffc1
+    - .. # installs top-level directory
