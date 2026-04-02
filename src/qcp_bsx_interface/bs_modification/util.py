@@ -38,13 +38,17 @@ AUGMENTATION_MAP = {
     'q': 3,
 }
 KNOWN_PARTICLES=dict(
-    conditional_core_polarization = [r'\-wc\dr', r'\-c\dr'], # integer tells which row # THE MINUS is essential (otherwise latter may match first!)
+    conditional_core_polarization = [
+        r'\-wc\drfnh',r'\-c\drfnh',
+        r'\-wc\dr', r'\-c\dr',
+    ], # integer tells which row # THE MINUS is essential (otherwise latter may match first!)
     augmentation=[HIGHER_AUG_REGEX,'aug'],
     dunning_stem=[r'cc-pv(wc|c)?[d,t,q,5,6]z'],
     ri=[r'\-ri']
 )
 
-def basis_recognized(basis_name) -> None:
+@val_call
+def basis_recognized(basis_name:str) -> str:
     # Check if the basis name matches the pattern for augmentation (should consist of known particles separated by dashes)
     remainder=basis_name.lower()
     for regex in KNOWN_PARTICLES.values():

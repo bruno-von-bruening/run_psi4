@@ -13,8 +13,10 @@ def elements_require_core_polarization(
         match=re.search(regex, basis_name.lower())  # re.search not re.match: pattern can appear anywhere in the string
         if bool(match):
             conditional_core_pol=match.group()
+            break
 
     base_name=basis_name.replace(conditional_core_pol,'') if conditional_core_pol else basis_name
+    print(conditional_core_pol)
     base_name=recognized_basis(base_name) # validate the base name (without the conditional core pol pattern) to make sure it's a recognized basis set, this also serves to validate the conditional core pol pattern since if it was not in the expected format, the base name would not be recognized after removing it
     base_core_polarized=re.match(r'cc-pv(wc|c)+[d,t,q,5,6]z', base_name.lower()) is not None
     
@@ -32,6 +34,7 @@ def elements_require_core_polarization(
             type_of_core_pol='c'
         else:
             raise Exception(f"Unexpected conditional core polarization pattern {conditional_core_pol} in basis name {basis_name}, expected format like wc3 or c3 where the number indicates the row for which to apply core polarization")
+        last_no_hal=( conditional_core_pol.lower().endswith('fnh') )
 
         # Get where to apply core polarization from the number in the pattern
         number_of_row=re.search(r'\dr', conditional_core_pol).group()
@@ -47,11 +50,18 @@ def elements_require_core_polarization(
             5:36,
         }
         assert number_of_row in cutoff_z, f"Unexpected row number {number_of_row} parsed from conditional core polarization pattern {conditional_core_pol} in basis name {basis_name}, expected an integer between 1 and 5 indicating the row for which to apply core polarization (e.g., wc3 or c3 for third row elements)"
-        cutoff_z=cutoff_z[number_of_row]
+        max_z=cutoff_z[number_of_row]
+        def hal_save(Z):
+            if last_no_hal:
+                if Z>2:
+                    next_cutoff=cutoff_z[number_of_row+1]
+                    next_hal=next_cutoff-1
+                    if Z==next_hal: return True
+            return False
         Zs=[ element_symbol_to_nuclear_charge(el) for el in elements ]
         basis_di={}
         for Z,el in zip(Zs,elements):
-            if Z <= cutoff_z:
+            if Z <= max_z or hal_save(Z):
                 basis_di[el]=base_name
             else:
                 the_name=re.sub(r'cc-pv', f'cc-p{type_of_core_pol}v', base_name, flags=re.IGNORECASE)

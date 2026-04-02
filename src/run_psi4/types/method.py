@@ -166,7 +166,7 @@ def method_setup_lines(method, geom, return_opts_var=False):
                 f"{name}_opts=dict(", *set_options(opt), ')',
             ]
 
-    df_exclude=[ x for x in df_options.values() if bs_requires_modification(x) ]
+    df_exclude=[ x for x in df_options.values() if not x is None and bs_requires_modification(x) ]
     df_exclude_str=( f" and not v in {df_exclude} # they are custom so have to be set expliclity" if len(df_exclude)>0 else "" )
     set_opts+=[
         "opts=dict(", 
@@ -368,7 +368,7 @@ class psi4_method(controller_model):
             df_basis_sets=self.necessary_df_bs()
             df_bs_needed=set()
             for df_type,bs_nam in df_basis_sets.items():
-                if bs_requires_modification(bs_nam):
+                if not bs_nam is None and bs_requires_modification(bs_nam):
                     df_bs_needed.add(bs_nam)
             if len(df_bs_needed)>0:
                 # psi4 requires expliclity section of defining df basis sets
