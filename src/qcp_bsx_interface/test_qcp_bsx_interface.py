@@ -10,6 +10,9 @@ from qcp_bsx_interface.bs_modification.process_basis import elements_require_cor
     # O: Z=8 <= 10 -> None, H: Z=1 <= 10 -> None
     ('cc-pvdz-wc3r', ['O', 'H'], {'O': 'cc-pvdz', 'H': 'cc-pvdz'}),
     ('cc-pvdz-wc2r', ['O', 'H'], {'O': 'cc-pwcvdz', 'H': 'cc-pvdz'}), # wc2r: apply core pol for elements in row 2+ (Z > 2), cutoff_z=2
+    ('d-aug-cc-pvdz-wc2rfnh', ['S', 'Cl'], {'S': 'd-aug-cc-pwcvdz', 'Cl': 'd-aug-cc-pwcvdz'}), 
+    ('d-aug-cc-pvdz-wc3rfnh', ['S', 'Cl'], {'S': 'd-aug-cc-pwcvdz', 'Cl': 'd-aug-cc-pvdz'}), 
+    ('d-aug-cc-pvdz-wc4rfnh', ['S', 'Cl'], {'S': 'd-aug-cc-pvdz', 'Cl': 'd-aug-cc-pvdz'}), 
     # no core pol pattern -> None
 ])
 def test_elements_require_core_polarization(basis_name, elements, expected):
