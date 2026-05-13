@@ -1,7 +1,7 @@
 from . import *
 from qcp_bsx_interface.util.import_helper import *
 
-from qcp_bsx_interface.augmentation.produce_augmentation import produce_augmentation, requires_augmentation
+from qcp_bsx_interface.bs_modification.process_basis import produce_augmentation, requires_augmentation
 
 
 

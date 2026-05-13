@@ -2,6 +2,8 @@ from . import *
 from .geom import geometry, geometry_wrapper
 from .machine_settings import machine_settings, my_machine_settings
 from .method import psi4_method
+from qcp_bsx_interface.bs_modification.process_basis import (
+    make_psi4_block, bs_requires_modification, modify_bs )
 
 
 class variable_names(BaseModel):
@@ -15,9 +17,9 @@ class file_names(BaseModel):
     fchk: str|None=None
 
 class job_tags(str, Enum):
-    POLARIZ_LR = 'POLARIZ_LR'
+    POLARIZ_LR = 'POLARIZ-LR'
     SP = 'SP'
-    POLARIZ_FF = 'POLARIZ_FF'
+    POLARIZ_FF = 'POLARIZ-FF'
     OPT = 'OPT'
 
 
@@ -36,7 +38,6 @@ from .job_settings import (
 class psi4_job(controller_model):
     __example_values__=dict(
         geom=example_geometry_entry,
-        method=psi4_method.example(),
     )
     jobtag : job_tags
     jobname : str|None=None
@@ -113,13 +114,15 @@ class psi4_job(controller_model):
             self.files.input=f"{self.jobname}.psi4inp"
     @classmethod
     def example(cls,**kwargs):
-
-
+        
         if not 'job_settings' in kwargs: no_settings_provided=True
 
         assert 'jobtag' in kwargs, "Please provide a jobtag to the example function of psi4_job"
         if no_settings_provided:
             kwargs['job_settings']=cls.get_settings_for_job_type( cls.recognized_job_types(kwargs['jobtag']) ).example()  
+
+        if not 'method' in kwargs or kwargs['method'] is None:
+            kwargs['method']=psi4_method.example()
         dat=super().example(**kwargs)
         # if no_settings_provided:
 
@@ -136,34 +139,55 @@ allowed_job_choices=list(psi4_job.__job_mapper__.keys())
 @val_call
 def store(job:psi4_job,path:tuple, target_var:str, update:bool=False):
     storage_var=job.var_names.storage
-    the_path=''.join([f"[\'{p}\']" for p in path])
+    # if not __<x>__ make it string otherweise keep as variable name
+    the_path=''.join(["["+(f"\'{p}\'" if not p.startswith('__') else p.replace('__','')) + "]" for p in path])
     return [ f"{storage_var}{the_path}"+
         ( f"= {target_var}" if not update else
             f".update({target_var})"
         ) ]
 
+                        # ind=4*' '
+                        # df_bs_lines+=[
+                        #     f"{k} {{",
+                        #     ind+f"assign {v}",
+                        #     f"}}"
+                        # ]
 class psi4_job(psi4_job):
     def method_lines(self)->List[str]:
-        lines=self.method.method_definitions( storage_var=self.var_names.storage )
 
-        method=self.method
-        if method.do_grac:
-            lines+=method.make_grac_lines(molecule_name=self.var_names.molecule_name, molecule_string=self.var_names.molecule_string)
+        bas_lines=self.method.basis_set_lines( atom_types=self.geom.atom_types )
 
-        if method.do_ip_tuning:
-            lines+= method.get_ip_tuned_omega(storage_var=self.var_names.storage)
+        lines=[]
+        lines+=self.method.method_definitions( storage_var=self.var_names.storage )
+
+        compute_grac=False    
+        if self.method.dft_opts.do_grac:
+            if self.geom.ac_shift is not None:
+                lines+=self.method.provide_grac(self.geom.ac_shift)
+            else: compute_grac=True
+
+        if compute_grac or self.method.dft_opts.do_ip_tuning:
+            self.method.dft_opts.do_grac=False
+            base_opts,opt_var=self.method.method_setting_lines(self.geom, return_opts_var=True)
+
+            self.method.dft_opts.do_grac=True
+            lines+=base_opts+bas_lines
+            if compute_grac:
+                lines+=self.method.make_grac_lines(molecule_name=self.var_names.molecule_name, molecule_string=self.var_names.molecule_string)
+
+            if self.method.dft_opts.do_ip_tuning:
+                lines+=self.method.get_ip_tuned_omega(storage_var=self.var_names.storage)
 
         new_lines,opt_var=self.method.method_setting_lines(self.geom, return_opts_var=True)
         lines+=new_lines+[
             f"# Store method options",
             *store( self, ('settings',), opt_var, update=True )
         ]
-        from qcp_bsx_interface.augmentation.produce_augmentation import requires_augmentation, produce_augmentation, make_psi4_block
-        if requires_augmentation(self.method.basis_set):
-            lines+= [ 
-                f""
-                f"# Basis set {self.method.basis_set} is not standard in psi4 distribution but requires augmentation through basis_set_exchange api" ]+[
-                *make_psi4_block(produce_augmentation(self.method.basis_set, elements=self.geom.atom_types), basis_name=self.method.basis_set)
-            ]
+        if self.method.dft_opts.do_grac and compute_grac:
+            lines+= [ f"{self.var_names.storage}['grac_shift']={self.method._grac_shift_var}" ]
+        # Add basis set specification if needed
+        lines+=bas_lines
 
         return lines
+    def store(self,*args,**kwargs):
+        return store(self,*args,**kwargs)

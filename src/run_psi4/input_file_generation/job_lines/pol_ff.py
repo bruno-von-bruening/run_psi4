@@ -27,27 +27,127 @@ def make_functions(job:psi4_job):
 
     return lines
 
+def get_second_derivative(plus, minus, zero,delta):
+    return float(np.round( (plus-2*zero+minus)/delta**2  , 8)+0)  # add zero to avoid -0.0
+def get_first_derivative(plus, minus, delta):
+    return float(np.round((plus-minus)/(delta), 8)+0)  # add zero to avoid -0.0
 
-@val_call
-def gather_polarisabilities(job:psi4_job, target_var:str, get_mom=True) -> lis:
-    lines=[]
+print_out=print
+def get_derivatives_from_energy(the_di,t, print_info=False):
+    # FD formula (polarisabilities are positive by convention)",
+    plus, zero, minus= ( the_di[x] for x in  [t+'_pos', 'zero',t+'_neg'] )
+    delta = (plus['delta'] - zero['delta'] )
+    if print_info:
+        print_out(f"\nE_plus={plus['E']} , E0={zero['E']}, E_minus={minus['E']} for tag={{t}} and delta={delta}")
+    epl,eze,emi=[float(x['E']) for x in [plus,zero,minus]]
+    return (
+        get_first_derivative(epl,emi,delta) ,
+        -get_second_derivative(epl,emi,eze,delta) 
+    )
+def get_derivatives_from_moments(the_di,t):
+    """ Could also get second derivative """
+    cur_pol=dict()
+    try:
+        plus, zero= ( the_di[x] for x in  [t+'_pos', 'zero'] )
+    except: raise Exception(f" {the_di.keys()}")
+    delta = (plus['delta'] - zero['delta'] )
+    if any(x['mom'] is None for x in [plus, zero] ): return None
+    for k in set(list(plus['mom'].keys())+list(zero['mom'].keys()) ):
+        assert k in plus['mom'].keys() and k in zero['mom'].keys()
+        cur_pol.update({ 
+            k: float(-get_first_derivative(plus['mom'][k],zero['mom'][k], delta=delta/2) + 0)
+        })
+    return cur_pol
+def get_derivatives_from_moments(first, second, delta):
+    """ Could also get second derivative """
+    pols=dict()
+    for k in set(list(first.keys())+list(second.keys()) ):
+        assert k in first.keys() and k in second.keys()
+        pols.update({ 
+            k: float(np.round(-get_first_derivative(first[k],second[k], delta=delta/2)/2,8) + 0) # divide by two according to definition of pols
+        })
+    return pols
 
-    do_print=True
-    if do_print and get_mom:
-        lines+= [ f"for t in tensor_elements:",
-            ind+f"pol = {get_var('pol_reg')}[t]",
-            ind+f"for k in sorted(pol.keys()):",
-            ind+ind+f"m=pol[k]",
-            ind+ind+f"np.set_printoptions(precision=3, suppress=True)",
-            ind+ind+f"the_string=np.array2string(np.array(m),separator = ' ')",
-            ind+ind+f"print_out( f\"\\n{{k}}@{{t}}: pol is \\n{{the_string}}\\n\" )",
-        ]
-    
-    # Save
-    lines+=[
-        f"{target_var}=pol_transform({get_var('pol_reg')})",
-    ]
-    return lines
+def get_moments(dummy): pass
+from .pol_ff_functions import nuclear_external_point_charge_energy
+def make_entries_for_fields(pot, delta, do_mom):
+    """ get_moments returns info di which may have additional keys for energy (starting with E_, e.g. Mp2)
+    Transform info_di so that it return a dictionary with keys for method (e.g. 'HF','MP2', etc) each value containing a moments and and energy (currently only leading 'mom' available)
+    """
+    info_di, wfn= get_moments( pot, delta, do_mom=do_mom)
+    # get all methods (follow with _ after either E or mom)
+    methods=[ k.split('_')[1] for k in info_di.keys() if '_' in k ]
+    out_di=dict()
+    E_Z_ext=nuclear_external_point_charge_energy(wfn) # zero for HF and something for CC and MP2 (see function)
+    for m in methods    :
+        out_di[m]=dict(
+            E= info_di.get(f"E_{m}", None),
+            mom= None, #info_di.get(f"mom_{m}", None),
+            delta= delta,
+        )
+        if any(m.lower().startswith(x) for x in ['mp','cc']) and out_di[m]['E'] is not None:
+            out_di[m]['E']+=E_Z_ext 
+    out_di['MAIN']=dict(
+        E= info_di[f"E"],
+        mom= info_di.get(f"mom", None),
+        delta= delta,
+    )
+    if any(wfn.name().lower().startswith(x) for x in ['mp','cc']):
+        out_di['MAIN']['E']+=E_Z_ext 
+    return out_di, wfn
+
+def perform_fd_calc(the_di):
+    """Compute finite-difference derivatives and return dictionaries.
+
+    Returns a dict with keys:
+        - 'pol_eng': pol_through_energy
+        - 'pol_mom': pol_through_moments (empty dict if gradients unavailable)
+        - 'mom': mom_through_energy
+    """
+
+    pol_through_energy, mom_through_energy, pol_through_moments = dict(), dict(), dict() 
+
+    zero_di=the_di['zero']
+    assert len(zero_di)==1, f"Expected only one entry for zero field, got {len(zero_di)} with entries {zero_di}"
+    zero_di=zero_di[0]
+    for t in [ x for x in the_di.keys() if x.lower()!='zero']: # Tensor elements!
+        # energy-based derivatives, 
+        entries= the_di[t]
+        # each dict of mom, E, delta 
+        # unzip a sequence of (E, mom, delta) tuples produced per entry
+        energies, moments, deltas = zip(*((e.get('E'), e.get('mom'), e.get('delta')) for e in entries))
+        assert len(energies)==2, f"Expected 2 energy entries for plus and minus field, got {len(energies)} for tag {t} with entries {entries}"
+        assert deltas[0]==-deltas[1], f"Expected deltas to be symmetric for plus and minus field, got {deltas} for tag {t} with entries {entries}"
+        
+        pol_through_energy[f"{t}@{t}"] = -get_second_derivative( energies[0], energies[1], zero_di.get('E'), deltas[0]-zero_di.get('delta') ) # negative due to convention
+        mom_through_energy[f"{t}"] = get_first_derivative( energies[0], energies[1], deltas[0]-deltas[1] )
+
+
+        found=([ (x,delta) for x,delta in zip(moments, deltas) if not x is None])
+        # If one do two simple FF if two do both sides (removes square term)
+        if len(found)==0:
+            pol_through_moments[f"{t}@{t}"] = None
+        elif len(found)>2:
+            raise Exception(f"Expected at most 2 moment entries for plus and minus field, got {len(found)} for tag {t} with entries {entries}")
+        else:
+            if len(found)==1:
+                delta=found[0][1]-zero_di['delta']
+                diffs= get_derivatives_from_moments(found[0][0], zero_di['mom'], delta)
+            elif len(found)==2:
+                delta=found[0][1]-found[1][1]
+                diffs= get_derivatives_from_moments(found[0][0], found[1][0], delta)
+            for d,v in diffs.items():
+                pol_through_moments[f"{d}@{t}"] = v
+
+        # optionally get polarisabilities from moments if available
+
+    return dict(
+        pol_eng= pol_through_energy,
+        pol_mom= pol_through_moments,
+        mom= mom_through_energy
+    )
+
+
 
 @val_call
 def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
@@ -59,14 +159,6 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
     lines=[]
     func_lines=[]
     #    ([] if not job.method.method.lower().startswith('cc') else [ ind+f"cc_convergence={opts.cc_convergence},"]) 
-    lines+=[
-        f"# For HF reference calculation as I understand. Should be probably a bit tighter for finite field (possibly its even faster do to better guess?)",
-        f"e_convergence_val={job.job_settings.e_convergence}",
-        f"set_options(dict(",
-        ind+f"e_convergence=e_convergence_val, ",]+[
-        f"))",
-        *store(job, ('settings','e_convergence'),"e_convergence_val",),
-    ]
     # +( [] if not job.method.lower().startswith('cc') else [ f"set_options(dict( cc_convergence=1.e-12 ) )" ]
 
     func_lines+=make_functions(job)
@@ -75,7 +167,7 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
     # save the external potentials in a dictionary
 
     from .pol_funcs import center_of_charge_function
-    from .pol_ff_functions import make_external_field
+    from .pol_ff_functions import make_external_field, nuclear_external_point_charge_energy
     func_lines+=inspect.getsource(make_external_field).split('\n')
     func_name, func_lines_new = center_of_charge_function()
     func_lines+=func_lines_new
@@ -93,7 +185,7 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
         *store(job, ('settings','ff_val_dip'),'delta_dip'),
         *store(job, ('settings','ff_val_qad'),'delta_qad'),
     ]
-    if len(job.geom.atom_types)==1:
+    if len(job.geom.atom_types)==1 and False:
         com=" # Single atom only need these elements"
         tags=['x','xx','xy']
     else:
@@ -130,78 +222,128 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
     ]
 
     # Evaluate moments for each
-    do_single_point_mom=job.method.can_do_gradient
+    from run_psi4.types.method import method_types
+    # For HF and DFT the density matrix is part of SCF and no reason not to evaluate methods
+    moments_for_free        = ( job.method.method_type in [ method_types.HF, method_types.DFT ] )
+    do_pol_mom              = ( job.method.can_do_gradient and job.job_settings.do_moments ) or moments_for_free
+    do_single_point_mom     = ( ( job.method.can_do_gradient and job.do_moments ) or moments_for_free ) or do_pol_mom # if moments for pol are available then also do it for single point (since it is basically free at that point)
+
     var_mem.update({f"ff_reg": 'ff_reg'}),
-    lines+=[
-        f"",
+
+
+    # make a list of dictionaries with ( <pot_tag>: ( delta=..., method1=(E:...,mom:....))'field': field_tag, 'deltas': [dots])
+    lines+= [
+        *(inspect.getsource(make_entries_for_fields).split('\n')),
+        *(inspect.getsource(nuclear_external_point_charge_energy).split('\n')),
+        f"# Fields plus their finite difference values ",
+        f"start_time=time.time()",
+        f"fields=['zero']+tensor_elements",
+        f"deltas=[ [0] ]+[ [1*(delta_dip if len(t)==1 else delta_qad),-1*(delta_dip if len(t)==1 else delta_qad)] for t in tensor_elements]",
+        f"save_fchk=[ [True] ]+[ (False,False) for _ in tensor_elements]",
+        f"do_moms=[ [ {str(do_single_point_mom)} ] ] + [ [ {str(do_pol_mom)} ]*2 for _ in tensor_elements ]",
+        *(store(job, ('settings','properties','did_zero_moms'), str(do_single_point_mom)) ),
+        *(store(job, ('settings','properties','did_fd_moms'), str(do_pol_mom)) ),
+        f"number_of_calculations= 1 + 2*len(tensor_elements) # zero plus positive and negative for each element",
+        #
         f"# Evaluate wfn in external potential",
-        f"",
         f"{get_var('ff_reg')}=dict()",
-        f"E,wfn,grad,mom= get_moments( {get_var('pot_registry')}['zero'], 0, do_mom={do_single_point_mom} ) # Should be True if we want zero point moments",
-        f"{get_var('ff_reg')}.update( zero=dict({{ 'delta':0, 'E':E, 'mom': mom }}))",
-        f"",
-        f"# Save the wave function",
-        f"fchk_file=\'{job.jobname}.fchk\'",
-        'fchk(wfn, fchk_file)',
-        f"",
-        f"if not os.path.isfile(fchk_file):",
-        ind+f"fchk_file=None",
-        f"{job.var_names.storage}[\'files\'].update({{ \'final_fchk\':fchk_file}})",
-        f"{job.var_names.storage}[\'results\']['energetic'].update({{ \'energy\': E, \'gradient\': (grad.to_array().tolist() if grad is not None else None) }})",
-        f"for i,t in enumerate(tensor_elements):",
-        ind+f"delta= (delta_dip if len(t)==1 else delta_qad)",
-        ind+f"for x in [ -1 , 1 ]: # negative and positive field",]+ \
-        [ind+ind+f"do_mom=True if x>0 else False  # only do moments for positive field (negative is for energy derviation) "
-          if job.job_settings.do_moments else ind+ind+f"do_mom=False  #no moments request by main script"
-        ]+[
-        ind+ind+f"E,wfn,grad,mom= get_moments( {get_var('pot_registry')}[t] , x*delta, ",]+\
-        ([3*ind+f"do_mom=False ) #no moments request by main script"] if not job.job_settings.do_moments else [
-        ind+ind+ind+f"do_mom=do_mom ) # only do moments for positive field (negative is for energy derviation) ",])+[
-        ind+ind+f"{get_var('ff_reg')}.update({{ t+('_neg' if x==-1 else '_pos'):dict({{ 'delta': x*delta, 'E': E, 'mom': mom }} )}})",
-        ind+f"print_out(f\"CUSTOM MARKER BY USER: Finished moment '{{t}}' ({{i}} out of {{len(tensor_elements)}}, {{(i+1)/len(tensor_elements)*100}}%)\")",
+        f"cnt=0",
+        f"for i, (pot_tag,deltas, save, do_mom_ser) in enumerate(zip(fields,deltas,save_fchk,do_moms)):",
+        ind+f"for (delta,sv,do_mom) in zip(deltas,save,do_mom_ser):",
+        # (ind+ind+f"do_mom=True if delta>0 else False  # only do moments for positive field (negative is for energy derviation) "
+        #  if (job.job_settings.do_moments and job.method.can_do_gradient)
+        #  else ind+ind+f"do_mom=False  #no moments request by main script"),
+        ind+ind+f"info_di,wfn = {make_entries_for_fields.__name__}( {get_var('pot_registry')}[pot_tag] , delta, do_mom=do_mom )",
+        ind+ind+f"if not pot_tag in {get_var('ff_reg')}.keys(): {get_var('ff_reg')}[pot_tag]=list()",
+        ind+ind+f"{get_var('ff_reg')}[pot_tag].append(info_di)",
+        ind+ind+f"cnt+=1",
+        ind+ind+f"passed_time=time.time()-start_time",
+        ind+ind+f"exp_remaining_time=passed_time* (number_of_calculations-cnt)/(cnt)",
+        ind+ind+f"print_out(f\"USER MARKER: F='{{pot_tag}}'*{{delta}}\"+",
+        ind+ind+ f"f\" | {{cnt}}/{{number_of_calculations}}={{(cnt)/number_of_calculations*100:.2f}}%\"+",
+        ind+ind+f"f\" | time pass/remain: {{datetime.timedelta(seconds=np.ceil(passed_time))}}\"+",
+        ind+ind+ f" ( f\" {{datetime.timedelta(seconds=np.ceil(exp_remaining_time))}}\" if exp_remaining_time > 0 else '') +'\\n' )",
+        ind+ind+f"if sv: # save fchk only for zero field and positive field (negative is for energy derviation) ",
+        ind+ind+ind+f"try:",
+        ind+ind+ind+ind+f"fchk_file='{job.jobname}.fchk'",
+        ind+ind+ind+ind+f"psi4.fchk(wfn, fchk_file)",
+        ind+ind+ind+ind+f"if not os.path.isfile(fchk_file): raise Exception(f\"fchk file was not created\")",
+        ind+ind+ind+ind+f"print_out(f\"CUSTOM MARKER: Saved fchk file for '{{pot_tag}}' with delta={{delta}} as '{{fchk_file}}'\")",
+        ind+ind+ind+f"except Exception as e:",
+        ind+ind+ind+ind+f"print_out(f\"Could not save fchk file for '{{pot_tag}}' with delta={{delta}} due to {{e}}.\")",   
+        ind+ind+ind+ind+f"fchk_file=None",
+        * [ ind+ind+ind+x for x in store(job, ('files', f'final_fchk'), 'fchk_file')],# # save None if saving failed",
     ]
 
+    # Now reshape the dictionary from entries of dictionaries to keys of 'MAIN','HF','MP2', etc each containing dictionary with the potentials tags and deltas and 'E' and 'mom' (if available)
+    lines+= [
+        f"# Reshape the dictionary to have method keys (e.g. 'HF','MP2', etc) each containing a dictionary with potential tags and their info (E and mom)",
+        f"raw_di=dict()",
+        #f"raise Exception({get_var('ff_reg')}) # DEBUG",
+        f"for pot_tag, pot_infos in {get_var('ff_reg')}.items():",
+        ind+f"for info_di in pot_infos:",
+        ind+ind+f"for method, method_info in info_di.items():",
+        ind+ind+ind+f"if method not in raw_di.keys(): raw_di[method] = dict()",
+        # there might be different delta so pot_tag carries a list of dictionaries
+        ind+ind+ind+f"if not pot_tag in raw_di[method].keys(): raw_di[method][pot_tag] = list()",
+        ind+ind+ind+f"raw_di[method][pot_tag]+=[ dict( (k,v) for k,v in method_info.items() if k in ['E','mom','delta'] ) ]",
+    ]
 
     # Compute the finite difference
+
+    # Now perform the DF calculation, each method tag will results in a entry in pol_reg with the polarisabilities through energy and through moments (if available)
     var_mem.update({f"pol_reg":"pol_reg"})
-    lines += [ 
-        f"",
-        f"# get polarisabilities through finite differences",
-        f"{get_var('pol_reg')}=dict()",
-        f"pol_through_energy=dict()",
-        f"for t in tensor_elements:",
-        ind+f"first,second, third= {get_var('ff_reg')}[t+'_pos'], {get_var('ff_reg')}['zero'], {get_var('ff_reg')}[t+'_neg']",
-        ind+f"print_out(f\"E={{first['E']}} , E0={{second['E']}} for tag={{t}} and delta={{delta}}\\n\")",
-        ind+f"cur_pol=dict()",
-        ind+f"delta = (first['delta'] - second['delta'] )",
-        ind+f"mapper=dict( (k,i) for i,k in enumerate(['x','y','z']) )",
-        ind+f"pol_through_energy[f\"{{t}}@{{t}}\"]=float(-(first['E']-2*second['E']+third['E'])/(delta**2) \ # FD formula (polarisabilities are positive by convention)",
-        ind+ind+f"*( 1/2 if len(t)==2 else 1) ) # Induction Energy",
-        ind+f"if any(x['mom'] is None for x in [first, second] ): continue",
-        ind+f"for k in set(list(first['mom'].keys())+list(second['mom'].keys()) ):",
-        ind+ind+f"assert k in first['mom'].keys() and k in second['mom'].keys()",
-        ind+ind+f"ff_mom=( first['mom'][k] - second['mom'][k]) / delta",
-        ind+ind+f"cur_pol.update({{ k:  np.array(ff_mom).tolist() }})",
-        ind+f"{get_var('pol_reg')}.update({{ t : cur_pol }})",
-    ]
-
-
     lines+=[
         f"",
-        f"# Gather and reform polarisabilities",
-    ]+gather_polarisabilities(job, "pol_vals", get_mom=job.job_settings.do_moments)
+        f"# Compute polarisabilities through finite differences",
+        f"# Each method (e.g. 'HF','MP2', etc) will have an entry in {get_var('pol_reg')} with the polarisabilities through energy and through moments (if available)",
+        f"",
+        f"#FORMULAS",
+        *inspect.getsource(get_second_derivative).split('\n'),
+        *inspect.getsource(get_first_derivative).split('\n'),
+        *inspect.getsource(get_derivatives_from_energy).split('\n'),
+        *( [] if not job.method.can_do_gradient else 
+            inspect.getsource(get_derivatives_from_moments).split('\n')
+        ),
+        *inspect.getsource(perform_fd_calc).split('\n'),
+    ]+[
+        f"#BODY",
+        f"{get_var('pol_reg')}=dict()",
+        f"for method in raw_di.keys():",
+        # treat the zero field case as well, to get the energy and moments at zero field (which may be different from the reference if e.g. MP2 correlation energy is only available as correction to HF)
+        # ind+f"zero = raw_di[method].pop('zero') # remove the zero field entry from raw_di and save it separately (we need it for the derivatives and it should not be in the final pol_reg)",
+        ind+f"{get_var('pol_reg')}[method] = {perform_fd_calc.__name__}(raw_di[method])",
+    ]
 
 
 
     path=('results','properties')
     lines+=[f"#Store object",  
             *store(job,path+('expansion_center',), f"[ float(x) for x in {get_var('center_of_charge')}]"),
-            *store(job,path+('MolPol_FinFie_through_dens',), 'pol_vals'),
-            *store(job,path+('MolPol_FinFie_through_eng',), 'pol_through_energy') ,
     ]
+    # Now store the different energy entries. MAIN_ is just mapped on nothing the remained is used a prefix (HF_, MP2_, etc) for the method. The pol_reg contains the polarisabilities through energy and through moments (if available)
+    lines+=[
+        f"for method, values in {get_var('pol_reg')}.items():",
+        ind+f"method_prefix = method+'_' if method != 'MAIN' else '' # MAIN is the reference method, so we don't add a prefix to it",
+        ind+f"for key, val in values.items():",
+        # map keys onto MolPol_FinFie_through_eng and MolPol_FinFie_through_dens, and for the moments MolMom_FinFie_through_eng and MolMom_FinFie_through_dens (if available)
+        ind+ind+f"if key.startswith('pol_eng'): ",
+        ind+ind+ind+f"store_key = f\"{{method_prefix}}MolPol_FinFie_through_eng\"",
+        ind+ind+f"elif key.startswith('pol_mom'): ",
+        ind+ind+ind+f"store_key = f\"{{method_prefix}}MolPol_FinFie_through_dens\"",
+        ind+ind+f"elif key.startswith('mom'): ",
+        ind+ind+ind+f"store_key = f\"{{method_prefix}}MolMom_FinFie_through_eng\"",
+        *[ ind+ind+x for x in store(job,(*path,"__store_key__"), '( val if any( x is not None for x in val.values() ) else None )')],
+    ]
+
     if do_single_point_mom:
-        lines+=make_moments(f"{get_var('ff_reg')}['zero']['mom']",'moms')
-        lines+=store(job,path+('MolMom',), 'moms')
+        lines+=[
+            f"# Optionally store the moments as well (only for single point with gradient available, as we only get the moments for the positive field, which are not suitable for finite difference derivatives but may be interesting on their own)",
+            f"zero_mom=raw_di['MAIN']['zero'][0]['mom']",
+            f"if zero_mom is not None: zero_mom = dict( (k, float(np.round(v,8)+0)) for k,v in zero_mom.items() ) # round and add zero to avoid -0.0",
+            *(store(job,path+('MolMom_from_dens',), f"zero_mom")),
+        ]
+
 
 
     return lines, func_lines

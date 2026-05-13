@@ -18,7 +18,7 @@ def psi4_action(job,action:str=Field(min_length=1), save_under:str=Field(default
         )
     
 
-    opts=' , '.join([job.method.func_var]+[f"{k}={v}" for k,v in kwargs.items()] )
+    opts=' , '.join([job.method._func_var]+[f"{k}={v}" for k,v in kwargs.items()] )
     line+=f" = {action}( {opts} )"
     return [line]
 

@@ -1,6 +1,7 @@
 from . import *
 
 from run_psi4.types.job import psi4_job, store
+from run_psi4.types.method import method_types
 
 from .pol_funcs import center_of_charge_function
 from inspect import getsource
@@ -20,7 +21,10 @@ def save_fchk(job:psi4_job, wfn_var='wfn'):
 def prop_calc(job:psi4_job):
     return [
     "# perform polarizability calculation",
-    "props = ['DIPOLE_POLARIZABILITIES','QUADRUPOLE_POLARIZABILITIES']",
+    (
+        "props = ['DIPOLE_POLARIZABILITIES','QUADRUPOLE_POLARIZABILITIES']" # if job.method_type!=method_types.cc else f"['{job.method.method']",
+        if not job.method.method_type in [ method_types.CC ] else f"props=['POLARIZABILITY']"
+    ),
     f"E, wfn = properties(method, molecule={job.var_names.molecule_name}, properties= props, return_wfn=True)",
     *save_fchk(job, wfn_var='wfn'),
     *store(job, ('results','energetic','energy'), 'E')
@@ -46,9 +50,12 @@ def recover_polarisabilities_linrsp(method, the_variables):
         'dipole':'DIPOLE POLARIZABILITY',
         'quadrupole':'QUADRUPOLE POLARIZABILITY'
     }
-    if any( method.lower().startswith(x) for x in [ 'cc','mp'] ): key_per_rank=dict(
-        (k,method.upper()+' '+v) for k,v in key_per_rank.items()
-    )
+    if any( method.lower().startswith(x) for x in [ 'cc','mp'] ): 
+        raise Exception(the_variables['CCSD DIPOLE POLARIZABILITY @ INF NM'])
+        
+    # key_per_rank=dict(
+    #     (k,method.upper()+' '+v) for k,v in key_per_rank.items()
+    # )
 
     # Recover all the elements of the polarisability tensor (product of dipole and quadrupole entries)
     dip_entries=['x','y','z']
@@ -96,7 +103,7 @@ def generate_pol_lr_job_lines(job:psi4_job):
         # Property calculation
         *prop_calc(job),
         # Recover polarisabilities
-        f"{pol_store_var}={recover_polarisabilities_linrsp.__name__}({job.method.func_var}, variables())",
+        f"{pol_store_var}={recover_polarisabilities_linrsp.__name__}({job.method._func_var}, variables())",
         *store(job, ('results','properties','MolPol_LinRsp'), pol_store_var)
     ]
 

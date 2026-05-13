@@ -34,7 +34,7 @@ def optimization(job:psi4_job) -> List[str]:
         # e_convergence=job.job_settings.e_convergence,
     )
 
-    do_gradient=True
+    do_gradient=True and job.method.can_do_gradient
 
     lines=com+[
         f"# Settings specific to geometry optimization",
@@ -53,6 +53,8 @@ def optimization(job:psi4_job) -> List[str]:
             *psi4_action(job, 'gradient', save_under=grad_var, **kwargs),
             *store_timing(job, 'comp_grad_after_opt', 'start_grad',add=True),
         ]
+    else:
+        lines+= [ '', f"# Cannot do gradient for given settings. Will hence not request it.",""]
     def check_hessian_lines():
         """ Confirm that the Hessian has only positive eigenvalues and the found geometry is indeed a minimum
         Probably there is more to do with that (save it)"""
@@ -79,13 +81,21 @@ def optimization(job:psi4_job) -> List[str]:
         stem=f"{molecule_name}"
     else:
         stem=f"{jobname}"
-    job.files.fchk=stem+".fchk"
 
-    lines+=[
+    if do_gradient or job.method.mos_implicit:
+        job.files.fchk=stem+".fchk"
+        lines+= [
         f"",
         f"# Save the wave function",
-        f"fchk_file=\'{job.files.fchk}\'",
-        'fchk(wfn, fchk_file)',
+        f"try:",
+        ind+f"fchk_file=\'{job.files.fchk}\'",
+        ind+'fchk(wfn, fchk_file)',
+        *[ ind+x for x in  job.store(('files','final_fchk'), 'fchk_file') ],
+        f"except Exception as e:",
+        ind+f"print_out(f\'Could not save fchk file due to {{e}}.\')",
+    ]
+
+    lines+=[
         f"try:",
         ind+f"xyz_geom=Molecule.from_string({job.var_names.molecule_name}.save_string_xyz() ).save_string_xyz()",
         #ind+f"{job.var_names.molecule_name}.reorient()",
@@ -93,12 +103,11 @@ def optimization(job:psi4_job) -> List[str]:
         ind+f"xyz_geom={job.var_names.molecule_name}.save_string_xyz()",
         ind+f"print_out(f\"WARNING: could not cannonically orient the molecule: {{str(ex)}}\")",
         f"with open(\'{job.jobname}.xyz\', \'w\') as wr:",
-        ind+f"wr.write(f\"{{{job.var_names.molecule_name}.natom()}}\\nOptimized with psi4;  Char Mult{{xyz_geom}}\")",
+        ind+f"wr.write(f\"{{{job.var_names.molecule_name}.natom()}}\\nOptimized with psi4 {{{job.method._func_var}}}/{{{job.method._basis_set_var}}};  Charge Multiplicity {{xyz_geom}}\")",
     ]
 
     saveargs=dict(
         files=dict(
-            final_fchk='fchk_file',
         ),
         results=dict(
             energy=E_var,

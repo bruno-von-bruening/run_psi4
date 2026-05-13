@@ -1,6 +1,6 @@
 [project]
 name = "run_psi4"
-version = "0.1.02"
+dynamic = [ "version" ]
 description = ''
 readme = "README.md"
 requires-python = ">=3.8"
@@ -14,9 +14,16 @@ classifiers = [
 # [project.scripts]
 # "my_run_psi4.py" = "bin_run_psi4:my_run_psi4.main"
 [tool.setuptools]
-script-files = ["bin/run_psi4_exe.py"]
+script-files = ["bin/run_psi4_exe.py", 'bin/qcp_export_envo.py']
 
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools_scm]
+version_file = "src/run_psi4/_version.py" # Make a version file (can the be used by this very package)
+
+[build-system]
+requires = ["setuptools>=80", "wheel", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"

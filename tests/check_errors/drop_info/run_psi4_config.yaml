@@ -1,0 +1,23 @@
+geom:
+  ac_shift: null
+  charge: 0
+  multiplicity: 1
+  xyz_file:  h2o_nist.xyz
+job_settings:
+  delta_dip: 0.001
+  delta_qad: 0.0001
+  do_moments: true
+  e_convergence: null
+jobtag: polarizability_finite_field
+machine_settings:
+  memory: 4 GB
+  num_threads: 4
+method:
+  basis_set: aug-cc-pvtz
+  cd_thres: 0.0001
+  fno: false
+  fno_thres: 1.0e-06
+  freeze_core: false
+  method_tag: ccsd(t)
+  reference: RHF
+  scf_type: conv
