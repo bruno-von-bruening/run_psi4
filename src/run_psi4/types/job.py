@@ -32,7 +32,8 @@ example_geometry_entry=dict(
 
 from .job_settings import (
     pol_ff_options,
-    optim_options
+    pol_lr_options,
+    optim_options,
 )
 
 class psi4_job(controller_model):
@@ -79,6 +80,7 @@ class psi4_job(controller_model):
     def get_settings_for_job_type(cls, job_type):
         mapper={
             job_tags.POLARIZ_FF: pol_ff_options,
+            job_tags.POLARIZ_LR: pol_lr_options,
             job_tags.OPT: optim_options,
         }
         if not job_type in mapper:

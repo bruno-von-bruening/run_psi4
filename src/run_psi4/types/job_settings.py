@@ -18,6 +18,11 @@ class pol_ff_options(controller_model):
         super().__init__(**data)
         # if self.e_convergence is None:
         #     self.e_convergence=self.delta_qad**2/100 # Should be 0.01 exact
+class pol_lr_options(controller_model):
+    def __init__(self, **data):
+        super().__init__(**data)
+        # if self.e_convergence is None:
+        #     self.e_convergence=self.delta_qad**2/100 # Should be 0.01 exact
 
 class optim_options(controller_model):
     maxiter: int = 50 # the psi4 default https://psicode.org/psi4manual/master/optking.html

@@ -16,7 +16,6 @@ def elements_require_core_polarization(
             break
 
     base_name=basis_name.replace(conditional_core_pol,'') if conditional_core_pol else basis_name
-    print(conditional_core_pol)
     base_name=recognized_basis(base_name) # validate the base name (without the conditional core pol pattern) to make sure it's a recognized basis set, this also serves to validate the conditional core pol pattern since if it was not in the expected format, the base name would not be recognized after removing it
     base_core_polarized=re.match(r'cc-pv(wc|c)+[d,t,q,5,6]z', base_name.lower()) is not None
     

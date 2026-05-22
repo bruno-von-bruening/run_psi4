@@ -83,7 +83,11 @@ def embed_value(x):
     
 def get_method_flags(string):
     def match_method(tag, target):
-        return bool(re.search(tag.upper(),target.upper()))
+        if tag.lower()=='mp':
+            restr=r'MP[2-9]'
+        else:
+            restr=tag.upper()
+        return bool(re.match(restr,target.upper()))
 
     matched=[]
     for method in method_types:

@@ -142,7 +142,8 @@ def main():
     except Exception as e:
         raise RuntimeError(f"Config file {config_file} does not translate into valid psi4_job: {e}")
 
-    psi4_run(job)
+    if not make_example or edit:
+        psi4_run(job)
 
 if __name__=='__main__':
     main()
