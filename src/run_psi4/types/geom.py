@@ -42,6 +42,9 @@ class geometry_model(controller_model):
     _geometry: geometry|None=None
     __example_values__=dict(
     )
+    @classmethod
+    def is_dummy(cls, input:str):
+        return input.lower().startswith('dummy')
     def check_geometry(self):
         if self.charge is None: raise Exception(f"Specify total charge (for safety)")
         if self.multiplicity is None: raise Exception(f"Specify multiplicity (for safety)")
@@ -72,7 +75,7 @@ class geometry_model(controller_model):
     def __init__(self, **data):
 
         super().__init__(**data)
-        if self.xyz_file.lower().startswith('dummy'):
+        if self.is_dummy(self.xyz_file):
             try:
                 matcher= r"dummy_[a-zA-Z1-9\-]+"
                 assert bool(re.fullmatch(matcher, self.xyz_file)), f"Provided input startswith dummy but does not match expected format for dummy values: {matcher}"

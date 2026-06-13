@@ -270,7 +270,7 @@ class psi4_method(controller_model):
         return get_method_flags(self.method)
 
     @classmethod
-    def example(cls):
+    def example(cls, **kwargs):
         # Check that enough mandatory information is provided!
         dummy_info=dict(
             method_tag='HF',
@@ -278,12 +278,13 @@ class psi4_method(controller_model):
             freeze_core=True,
             scf_type='default',
         )
+        dummy_info.update(**kwargs)
         try:
-            cls(**dummy_info)
+            inst=cls(**dummy_info)
         except Exception as e:
             raise RuntimeError(f"Cannot create example psi4_method: {e}\n{dummy_info}")
 
-        return super().example(exclude=['method'])
+        return inst # super().example(exclude=['method'])
 
     def __init__(self, *args, **kwargs):
         if len(args)==0:
@@ -437,7 +438,10 @@ class psi4_method(psi4_method):
     ) ->  List[str] :# Tuple[List[str],str]:
         from run_psi4.main.input_writer import get_gs_energy, get_ionization_energy
         neut_string, E_neut, wfn_neut = get_gs_energy(func_var, basis_set_var, molecule_name=molecule_name)
-        ion_string, E_ion, wfn_ion    = get_ionization_energy(func_var, basis_set_var, molecule_name=molecule_name, molecule_string=molecule_string)
+        ion_string, E_ion, wfn_ion    = get_ionization_energy(func_var, basis_set_var, molecule_name=molecule_name, molecule_string=molecule_string, 
+                                                              conv_crit='loose'# this can be usually default criteria
+                                                              )
+
 
         # Compute the difference -> grac_shift
         string=[ 

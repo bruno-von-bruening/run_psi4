@@ -148,13 +148,17 @@ def get_gs_energy(func, basis, molecule_name='monomer', uks=False) ->Tuple[List[
     return base_string, E_var, wfn_var
 
 @val_call
-def get_ionization_energy(func_var, basis_set_var, molecule_name='monomer', molecule_string='molecule_string', uks=True) -> Tuple[List[str],str,str]:
+def get_ionization_energy(func_var, basis_set_var, molecule_name='monomer', molecule_string='molecule_string', uks=True,
+                          conv_crit=None) -> Tuple[List[str],str,str]:
+    """ 
+    conv_crit: currently only None provide """
     E_var='E_ion'
     wfn_var='wfn_ion'
     if uks:
         ref='uks'
     else:
         ref='rks'
+
     molecule_ion_name=molecule_name+"_ion"
     base_string= [ x.strip() for x in f"""
     {molecule_ion_name}=Molecule.from_string({molecule_string})
@@ -162,11 +166,26 @@ def get_ionization_energy(func_var, basis_set_var, molecule_name='monomer', mole
     {molecule_ion_name}.set_molecular_charge({molecule_name}.molecular_charge()+1)
     {molecule_ion_name}.set_multiplicity({molecule_name}.multiplicity()+1)
     set_options({{
-    #    'basis': {basis_set_var},
         'reference': 'uks',
     }})
     {E_var},{wfn_var} = energy({func_var}, molecule={molecule_ion_name}, return_wfn=True)
-    """.split('\n') ]
+    """.split('\n')
+    ]
+    if conv_crit is None:
+        pass
+    elif isinstance(conv_crit, str) and conv_crit=='loose':
+        get_conv=[
+            "old_conv=dict( (k, get_global_option(k))  for k in [ f\"{x}_convergence\" for x in ['e','d','r'] ])",
+            "ion_conv=dict( (k, 1.e-6) for k in old_conv.keys() ) # usually ion is calculated for grac and does not need to be tight",
+            'set_options(ion_conv)'
+        ]
+        reset_conv=[
+            f"set_options(old_conv)"
+        ]
+        base_string=[ *get_conv,*base_string,*reset_conv ]
+    else:
+        raise NotImplementedError(f"Noth convergence control implemented for {get_ionization_energy} and value {conv_crit}")
+    
     return base_string, E_var, wfn_var
 
     # if verbose:

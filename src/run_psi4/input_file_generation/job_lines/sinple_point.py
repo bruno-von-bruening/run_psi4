@@ -1,5 +1,6 @@
 from . import *
 from run_psi4.types.job import psi4_job
+from run_psi4.types.method import method_types
 
 @val_call
 def get_single_point(job:psi4_job) -> List[str]:
@@ -11,7 +12,8 @@ def get_single_point(job:psi4_job) -> List[str]:
 
     meth_fl=p4ut.get_method_flags(method)
     wfn_var='wfn'
-    if meth_fl['mp2'] or meth_fl['cc']:
+
+    if job.method.method_type in [ method_types.MP, method_types.CC ]:
         com=['# MP2 and CCSD energies do not correct the density matrix! But the gradient calculation does it!']
         action='gradient'
     else:

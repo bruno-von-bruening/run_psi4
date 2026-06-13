@@ -30,3 +30,6 @@ class optim_options(controller_model):
     # maxiter: int = 100
     # g_convergence: float = 1.e-5
     # e_convergence: float = 1.e-6
+
+class sp_options(controller_model):
+    pass

@@ -9,7 +9,7 @@ from run_psi4.main.main import psi4_run, allowed_job_choices
 from run_psi4.util.import_helper import warn, info
 from qcp_global_utils.environment.file_handling import load_json_or_yaml
 
-from run_psi4.types.job import psi4_job
+from run_psi4.types.job import psi4_job, geometry_wrapper
 
 GEOM_KEY='geom'
 _config_file_default='run_psi4_config.yaml'
@@ -118,12 +118,15 @@ def main():
                 basis_set=basis
             ))
         if geom:
-            if geom.endswith('.xyz'):
+            if geom.endswith('.xyz') or geometry_wrapper.is_dummy(geom):
                 kwargs['geom']=dict(
                     xyz_file=geom,
                     charge=0,
                     multiplicity=1,
                 )
+            else: 
+                print(f"Geometry not recognized either dummy tag or xyz file.")
+                sys.exit(1) # e.g. dummy_...
 
         config=psi4_job.example(execute=exc, executable=executable, jobtag=job_type, **kwargs)
 
@@ -137,12 +140,12 @@ def main():
             warn(f"Could not open {config_file} in nvim: {e}")
         config=load_json_or_yaml(config_file)
     
-    try:
-        job=psi4_job(**config)
-    except Exception as e:
-        raise RuntimeError(f"Config file {config_file} does not translate into valid psi4_job: {e}")
+    if (not make_example or edit) or exc:
+        try:
+            job=psi4_job(**config)
+        except Exception as e:
+            raise RuntimeError(f"Config file {config_file} does not translate into valid psi4_job: {e}")
 
-    if not make_example or edit:
         psi4_run(job)
 
 if __name__=='__main__':

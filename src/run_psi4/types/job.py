@@ -34,6 +34,7 @@ from .job_settings import (
     pol_ff_options,
     pol_lr_options,
     optim_options,
+    sp_options,
 )
 
 class psi4_job(controller_model):
@@ -43,7 +44,7 @@ class psi4_job(controller_model):
     jobtag : job_tags
     jobname : str|None=None
     add_method_tags : bool = True
-    job_settings: pol_ff_options| optim_options | None =None 
+    job_settings: pol_ff_options| pol_lr_options | optim_options | sp_options | None =None 
     
     geom : geometry_wrapper
     method: psi4_method 
@@ -82,6 +83,7 @@ class psi4_job(controller_model):
             job_tags.POLARIZ_FF: pol_ff_options,
             job_tags.POLARIZ_LR: pol_lr_options,
             job_tags.OPT: optim_options,
+            job_tags.SP: sp_options,
         }
         if not job_type in mapper:
             raise NotImplementedError(f"Job options for job type {job_type} not implemented yet, please provide them manually!")
@@ -123,8 +125,8 @@ class psi4_job(controller_model):
         if no_settings_provided:
             kwargs['job_settings']=cls.get_settings_for_job_type( cls.recognized_job_types(kwargs['jobtag']) ).example()  
 
-        if not 'method' in kwargs or kwargs['method'] is None:
-            kwargs['method']=psi4_method.example()
+        # if not 'method' in kwargs or kwargs['method'] is None:
+        kwargs['method']=psi4_method.example(**(kwargs.get('method',{}) ) )
         dat=super().example(**kwargs)
         # if no_settings_provided:
 
