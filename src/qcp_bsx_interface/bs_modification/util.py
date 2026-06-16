@@ -44,7 +44,9 @@ KNOWN_PARTICLES=dict(
     ], # integer tells which row # THE MINUS is essential (otherwise latter may match first!)
     augmentation=[HIGHER_AUG_REGEX,'aug'],
     dunning_stem=[r'cc-pv(wc|c)?[d,t,q,5,6]z'],
-    ri=[r'\-ri']
+    jensen_stem=[r'pc(seg)?-[1-4]',],
+    karlsruhe=['def2-[s,t,q](z)?vp(pd,p,d)?'],
+    fit=[r'\-ri',r'\-jkfit'],
 )
 
 @val_call
