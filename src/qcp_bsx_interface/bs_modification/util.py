@@ -46,7 +46,7 @@ KNOWN_PARTICLES=dict(
     dunning_stem=[r'cc-pv(wc|c)?[d,t,q,5,6]z'],
     jensen_stem=[r'pc(seg)?-[1-4]',],
     karlsruhe=['def2-[s,t,q](z)?vp(pd,p,d)?'],
-    fit=[r'\-ri',r'\-jkfit'],
+    fit=[r'\-ri',r'\-jkfit','def2-universal'],
 )
 
 @val_call

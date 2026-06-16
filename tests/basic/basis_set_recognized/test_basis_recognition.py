@@ -31,7 +31,8 @@ def jump(dir_name):
 
 
 @pytest.mark.parametrize("bs", [
-    'd-aug-cc-pvdz', 'd-aug-cc-pvcdz','d-aug-cc-pvwcdz', 'd-aug-pcseg-2', 'def2-TZVPPD','def2-QZVP',# ,'sto-3g',
+    'd-aug-cc-pvdz', 'd-aug-cc-pvcdz','d-aug-cc-pvwcdz', 'd-aug-pcseg-2',
+    'def2-TZVPPD','def2-QZVP','def2-universal-jkfit',# ,'sto-3g',
     pytest.param('aug-cc-pcvdz',  marks=pytest.mark.xfail()),
 ])
 def test_basis_recognized(bs):
