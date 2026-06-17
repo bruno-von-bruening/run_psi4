@@ -43,10 +43,10 @@ KNOWN_PARTICLES=dict(
         r'\-wc\dr', r'\-c\dr',
     ], # integer tells which row # THE MINUS is essential (otherwise latter may match first!)
     augmentation=[HIGHER_AUG_REGEX,'aug'],
-    dunning_stem=[r'cc-pv(wc|c)?[d,t,q,5,6]z'],
+    dunning_stem=[r'cc-p(wc|c)?v[d,t,q,5,6]z'],
     jensen_stem=[r'pc(seg)?-[1-4]',],
-    karlsruhe=['def2-[s,t,q](z)?vp(pd,p,d)?'],
-    fit=[r'\-ri',r'\-jkfit','def2-universal'],
+    karlsruhe=[r'def2-[s,t,q](z)?vp(pd|p|d)?'],
+    fit=[r'\-ri',r'\-jkfit',r'def2-universal'],
 )
 
 @val_call

@@ -31,14 +31,19 @@ def jump(dir_name):
 
 
 @pytest.mark.parametrize("bs", [
-    'd-aug-cc-pvdz', 'd-aug-cc-pvcdz','d-aug-cc-pvwcdz', 'd-aug-pcseg-2',
-    'def2-TZVPPD','def2-QZVP','def2-universal-jkfit',# ,'sto-3g',
+    'd-aug-cc-pvdz', 'd-aug-cc-pcvdz','d-aug-cc-pwcvdz', 'd-aug-pcseg-2',
+    'def2-TZVPPD','def2-QZVP',
+    'def2-universal-jkfit',# ,'sto-3g',
     pytest.param('aug-cc-pcvdz',  marks=pytest.mark.xfail()),
 ])
 def test_basis_recognized(bs):
     the_dir=f"{bs}_test"
     with jump(the_dir):
-        cmd=f"run_psi4_exe.py --job_type polarizability_finite_field --method hf --geom dummy_h2 --basis {bs} --exc"
+        cmd=f"run_psi4_exe.py --job_type polarizability_finite_field --method hf --geom dummy_ne --basis {bs} --generate"
         print(f"Will run: {cmd}")
-        p=sp.Popen(cmd, shell=True)
-        p.communicate()
+        p=sp.Popen(cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
+        stdout,stderr=[ x.decode() for x in p.communicate() ]
+        if p.returncode != 0:
+            raise Exception((stdout,stderr))
+
+

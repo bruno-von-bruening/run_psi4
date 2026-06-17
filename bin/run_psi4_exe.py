@@ -48,6 +48,7 @@ def main():
     add(  '--geom', '-g', 
         type=str, help=f"Geometry to include in input file")
     add( '--version_info','-vinfo', action='store_true')
+    add( '--generate','-gen',help=f"generate psi4 input file", action='store_true',),
     args=par.parse_args()
 
     print_version_info=args.version_info
@@ -72,6 +73,7 @@ def main():
     method=args.method
     geom=args.geom
     basis=args.basis
+    gen=args.generate
     #method=args.method
 
     if executable:
@@ -140,7 +142,7 @@ def main():
             warn(f"Could not open {config_file} in nvim: {e}")
         config=load_json_or_yaml(config_file)
     
-    if (not make_example or edit) or exc:
+    if not make_example or gen:
         try:
             job=psi4_job(**config)
         except Exception as e:
