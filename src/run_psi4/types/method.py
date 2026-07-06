@@ -24,18 +24,22 @@ def process_method(method:str) -> Dict[str,str|bool]:
     ret['method_corrections']=[]
     ret['method-prefix']=[]
     
-    for comp in components:
+
+
+    for comp in [ c.lower() for c in components]: 
         if check_grac(comp):
             ret['do_grac']=True
         elif check_ip_tuning(comp):
             ret['do_ip_tuning']=True
-        elif ( comp.lower() in ['cam','lrc','core','dsd','hjs','t','tuned']):
+        elif ( comp in ['cam','lrc','lc','core','dsd','hjs','t','tuned','op']):
             ret['method-prefix']+=[comp.lower()]
-        elif ( comp.lower() in ['v','d','lrc','a','l','nl','gga1','k','vwn','2x','hx','so','rc04','sx','x','sol','dh','fc','fco','fcfo','fl'] or 
-            comp.lower().startswith('d3')     or
-            bool(re.match(r"[0-9]+[a-z]?", comp.lower()))
+        elif ( comp in ['hf'] and len(method_tags)>0 ): # e.g. for M06-HF
+            ret['method_corrections']+=[comp]
+        elif ( comp in ['v','d','a','l','nl','gga1','k','vwn','2x','hx','so','rc04','sx','x','sol','dh','fc','fco','fcfo','fl'] or 
+            comp.startswith('d3')     or
+            bool(re.match(r"[0-9]+[a-z]?", comp))
         ):
-            ret['method_corrections']+=[comp.lower()]
+            ret['method_corrections']+=[comp]
         else:
             method_tags.append(comp)
     
@@ -47,8 +51,6 @@ def process_method(method:str) -> Dict[str,str|bool]:
     else:
         raise Exception(f"Cannot process method string {method}, multiple method tags found: {method_tags}")
     return ret
-
-
 
 @val_call
 def set_grac_shift(

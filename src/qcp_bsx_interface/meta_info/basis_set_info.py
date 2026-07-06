@@ -1,7 +1,10 @@
 from . import *
 from qcp_bsx_interface.util.import_helper import *
 
-from qcp_bsx_interface.bs_modification.process_basis import produce_augmentation, requires_augmentation
+from qcp_bsx_interface.bs_modification.process_basis import produce_augmentation, bs_requires_modification, modify_bs
+
+def requires_augmentation(*args,**kwargs):
+    raise NotImplementedError(f"Function {requires_augmentation} is depreciated. Use {bs_requires_modification} instead.")
 
 
 
@@ -9,25 +12,26 @@ def count_basis_functions_for_element(element, basis_name):
     """
     Count number of basis functions for a single atom
     """
-    if requires_augmentation(basis_name):
-        basis_dict = produce_augmentation(basis_name, elements=[element])
+    if bs_requires_modification(basis_name):
+        basis_dict = modify_bs(basis_name, elements=[element])[basis_name]
     else:
         basis_dict = bsx.get_basis(basis_name, elements=[element])
 
+    # print(basis_dict)
     element_data = basis_dict['elements'][str(bsx.lut.element_Z_from_sym(element))]
     shells = element_data['electron_shells']
 
-    print(bsx.write_formatted_basis_str(basis_dict, 'psi4'))
+    # print(bsx.write_formatted_basis_str(basis_dict, 'psi4'))
 
     nbf = 0
     for shell in shells:
-        print(shell)
+        # print(shell)
         if len(shell['exponents']) > 1:
             fac=len(shell['coefficients'])
         else:
             fac=1
         for l in shell['angular_momentum']:
-            print(l)
+            # print(l)
             nbf += fac*(2 * l + 1)
 
     return nbf

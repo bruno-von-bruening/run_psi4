@@ -1,0 +1,43 @@
+add_method_tags: true
+do_moments: true
+executable: null
+execute: true
+geom:
+  charge: 0
+  multiplicity: 1
+  xyz_file: dummy_h2
+job_settings:
+  delta_dip: 0.001
+  delta_qad: 0.0001
+  do_moments: true
+jobname: null
+jobtag: polarizability_finite_field
+machine_settings:
+  memory: 4GB
+  num_threads: 4
+method:
+  basis_set: def2-TZVPPD
+  cd_thres: 0.0001
+  convergence:
+    d_convergence: 1.0e-06
+    e_convergence: 1.0e-06
+    maxiter: 100
+    r_convergence: 1.0e-06
+  df_opts:
+    df_basis_cc: null
+    df_basis_mp2: null
+    df_basis_scf: null
+  dft_opts:
+    do_grac: false
+    do_ip_tuning: false
+    radial_points: 75
+    radial_scheme: TREUTLER
+    spherical_points: 302
+    spherical_scheme: LEBEDEV
+  fno: false
+  fno_thres: 1.0e-06
+  freeze_core: true
+  method: HF
+  method_tag: HF
+  reference: AUTO
+  scf_type: pk
