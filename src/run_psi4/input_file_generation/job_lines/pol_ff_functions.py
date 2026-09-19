@@ -24,18 +24,18 @@ def make_external_field(key, center, d):
     if len(key)==1:
         vec=get_dir(key)
         arrangement=[
-            ( -1, -vec),
             ( 1, vec),
+            ( -1, -vec),
         ]
-        q= -d**2/2.
+        q= d**2/2.
     elif len(key)==2:
         a,b=key[0],key[1]
         vec1, vec2=get_dir(a), get_dir(b)
-        q= -d**3/3
+        q= d**3/3
         if a==b:
             arrangement=[
-                ( 1., -vec1),
                 ( 1., vec1),
+                ( 1., -vec1),
             ]
         else:
             arrangement=[
@@ -283,7 +283,7 @@ def meassure_multipoles_func(job):
         # "    print(var)",
         f"def my_trans(x):",
         ind+f"fac=1",# if len(x)==4 else 2",
-        ind+f"ar=-1*np.array(x).reshape(tuple([3]*int(np.emath.logn(3,x.size))))", # e-
+        ind+f"ar=np.array(x).reshape(tuple([3]*int(np.emath.logn(3,x.size))))", # e-
         ind+f"return {tag_matrix.__name__}(ar) ",
         f"new_di= dict()",
         f"[ new_di.update(my_trans(wfn.variable(prop) ) ) for prop in {[ trans_prop(x) for x in properties]} ]",

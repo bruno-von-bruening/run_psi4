@@ -301,7 +301,7 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
         f"#FORMULAS",
         *inspect.getsource(get_second_derivative).split('\n'),
         *inspect.getsource(get_first_derivative).split('\n'),
-        *inspect.getsource(get_derivatives_from_energy).split('\n'),
+        # *inspect.getsource(get_derivatives_from_energy).split('\n'),
         *( [] if not job.method.can_do_gradient else 
             inspect.getsource(get_derivatives_from_moments).split('\n')
         ),

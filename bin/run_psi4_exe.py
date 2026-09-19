@@ -134,6 +134,7 @@ def main():
 
         with open(config_file,'w') as wr:
             yaml.safe_dump(config, wr)
+    config['execute']=exc
 
     if edit:
         try:
@@ -142,7 +143,7 @@ def main():
             warn(f"Could not open {config_file} in nvim: {e}")
         config=load_json_or_yaml(config_file)
     
-    if not make_example or gen:
+    if (not make_example or gen) or exc: 
         try:
             job=psi4_job(**config)
         except Exception as e:
