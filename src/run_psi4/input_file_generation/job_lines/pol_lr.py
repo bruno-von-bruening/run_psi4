@@ -50,18 +50,25 @@ def recover_polarisabilities_linrsp(method, the_variables):
         'dipole':'DIPOLE POLARIZABILITY',
         'quadrupole':'QUADRUPOLE POLARIZABILITY'
     }
-    if any( method.lower().startswith(x) for x in [ 'cc','mp'] ): 
-        raise Exception(the_variables['CCSD DIPOLE POLARIZABILITY @ INF NM'])
+    # For some reason they are named differently
+    dip_entries=['x','y','z']
+    quad_entries=['xx','yy','zz','xy','xz','yz']
+    if any( method.lower().startswith(x) for x in [ 'cc','mp'] ):  
+        keys= [ dip_entries] if method.lower().startswith('cc') else [dip_entries,quad_entries] # No quadrupoles for CCSD
+        mod_rank_key=lambda key,el : f"{method.upper()} {key} @ INF NM"
+    else:
+        keys= [ dip_entries, quad_entries]
+        mod_rank_key=lambda key,el : f"{key} {el}"
+    # if any( method.lower().startswith(x) for x in [ 'cc','mp'] ): 
+    #     raise Exception(the_variables['CCSD DIPOLE POLARIZABILITY @ INF NM'])
         
     # key_per_rank=dict(
     #     (k,method.upper()+' '+v) for k,v in key_per_rank.items()
     # )
 
     # Recover all the elements of the polarisability tensor (product of dipole and quadrupole entries)
-    dip_entries=['x','y','z']
-    quad_entries=['xx','yy','zz','xy','xz','yz']
     keys_to_cover=dict()
-    for x in [dip_entries, quad_entries]:
+    for x in keys:
         for k in [
             (a,b) for a in x for b in x
         ]:
@@ -70,7 +77,7 @@ def recover_polarisabilities_linrsp(method, the_variables):
     # Recover all the entries
     pol_elements=dict()
     for a,b in keys_to_cover.keys():
-        full_index=' '.join([key_per_rank['dipole' if len(a)==1 else 'quadrupole'].upper(), a.upper()+b.upper()])
+        full_index=mod_rank_key(key_per_rank['dipole' if len(a)==1 else 'quadrupole'].upper(), a.upper()+b.upper())
         assert not keys_to_cover[(a,b)], f"Double read in of {{full_index}}?"
         keys_to_cover[(a,b)]=True
         value=the_variables[full_index]

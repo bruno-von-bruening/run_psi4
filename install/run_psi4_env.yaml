@@ -1,4 +1,4 @@
-name: run_psi4_newpar
+name: run_psi4
 channels:
   - conda-forge
   - conda-forge/label/libint_dev
@@ -11,6 +11,7 @@ dependencies:
   - pip
   - pip:
     - build
+    - pytest
     - rdkit
     - rich
     - setuptools-scm
