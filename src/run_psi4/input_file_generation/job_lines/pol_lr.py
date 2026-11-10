@@ -2,8 +2,9 @@ from . import *
 
 from run_psi4.types.job import psi4_job, store
 from run_psi4.types.method import method_types
+from run_psi4.input_file_generation.functions.center_of import set_origin
 
-from .pol_funcs import center_of_charge_function
+from ..functions.center_of import center_of_charge_function
 from inspect import getsource
 
 def save_fchk(job:psi4_job, wfn_var='wfn'):
@@ -30,15 +31,6 @@ def prop_calc(job:psi4_job):
     *store(job, ('results','energetic','energy'), 'E')
     ]
 
-def set_origin(job:psi4_job):
-    func_name, func_lines = center_of_charge_function()
-    return (func_lines, [
-        f"# Define center of charge (in angstrom!) and assert that it has been read in correctly!",
-        f"{get_var('center_of_charge')} = {func_name}({job.var_names.molecule_name}) # For evaluation of multipoles and setup of external field",
-        f"core.set_global_option('PROPERTIES_ORIGIN', np.array({get_var('center_of_charge')}).tolist() )",
-        *store(job, ('results','properties','expansion_center'), f"get_option('None','PROPERTIES_ORIGIN')"),
-        # f"assert {get_var('center_of_charge')}==get_option('None','PROPERTIES_ORIGIN'), 'Apparently center of ORIGIN was set incorrectly!'",
-    ])
 # Get the polarisabilities
 def recover_polarisabilities_linrsp(method, the_variables):
     """ Polarizabilities are stored under e.g. 'CCSD(T) DIPOLE POLARIZABILITY XX' etc.

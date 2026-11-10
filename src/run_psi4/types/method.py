@@ -292,6 +292,7 @@ class psi4_method(controller_model):
         if len(args)==0:
             if 'method_tag' in kwargs.keys():
                 new_kwargs=process_method(kwargs['method_tag'])
+                # del kwargs['method_tag'] # otherwise raises warning
             else:
                 new_kwargs={}
         elif len(args)==1:

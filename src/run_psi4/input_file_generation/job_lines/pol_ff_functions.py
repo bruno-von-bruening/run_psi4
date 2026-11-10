@@ -2,6 +2,9 @@ from . import *
 
 from run_psi4.types.job import psi4_job, store
 from run_psi4.types.method import method_types
+from run_psi4.input_file_generation.functions.get_moments import meassure_multipoles_func
+from run_psi4.input_file_generation.functions.action import psi4_action
+from run_psi4.input_file_generation.functions.tag_matrix import tag_matrix
 
 # def make_multipolar_field():
 
@@ -223,101 +226,7 @@ def get_moment_function(job):
         *[ ind+l for l in lines],
     ]
     return lines
-@val_call
-def meassure_multipoles_func(job):
-    """ Meassure multipoles for a single point
-    This is currently a function to be defined within psi4 script
-    tag tells perturbation (e.g. xx for quadrupolar field)
 
-    Ideally this should take a wfn
-    """
-    lines=[]
-    
-    wfn_internal='wfn'
-
-    def method_works_with_properties(method):
-        return False
-        return (not method.lower().startswith('cc')) and (not method.lower()=='ccsd')
-
-    # compute dipole and quadrupole moment
-    properties=['DIPOLE','QUADRUPOLE','OCTUPOLE','HEXADECAPOLE']
-    properties=[f"MULTIPOLE({i})" for i  in range(1,5)]
-    if method_works_with_properties(job.method.method):
-        kwargs=dict(
-            properties=properties,
-            return_wfn=False,
-            wfn=wfn_internal,
-        )
-        lines+=[ psi4_action(job,'properties', **kwargs) ]
-    else:
-        lines+=[
-            f"oeprop = psi4.core.OEProp({wfn_internal})",
-            *[ f"oeprop.add('{t}')" for t in properties],
-            f"oeprop.compute()",
-        ]
-    # clean scratch files
-    # lines+=[f"psi4.core.clean()"]
-        
-    def trans_prop(tag):
-        mapper={
-            'MULTIPOLE(1)': 'DIPOLE',
-            'MULTIPOLE(2)': 'QUADRUPOLE',
-            'MULTIPOLE(3)': 'OCTUPOLE',
-            'MULTIPOLE(4)': 'HEXADECAPOLE',
-        }
-        return mapper.get(tag, tag)
-        if any(job.method.method.lower().startswith(x) for x in ['mp','cc','ci']):
-            return f"{job.method.method} {tag}"
-        else: 
-            return f"SCF {tag}"
-    # save the moments under variables describing the moment 
-    lines+=[
-        # "for name in ['CURRENT QUADRUPOLE', 'MULLIKEN_QUADRUPOLE', 'Q(QM)']:",
-        # "    try:",
-        # "        print(f\"{name} =\", wfn.variable(name))",
-        # "    except KeyError:",
-        # "        print(f\"No {name}\")",
-        # "all_vars = wfn.variables()",
-        # "print('All available wfn variables:')",
-        # "for var in all_vars:",
-        # "    print(var)",
-        f"def my_trans(x):",
-        ind+f"fac=1",# if len(x)==4 else 2",
-        ind+f"ar=np.array(x).reshape(tuple([3]*int(np.emath.logn(3,x.size))))", # e-
-        ind+f"return {tag_matrix.__name__}(ar) ",
-        f"new_di= dict()",
-        f"[ new_di.update(my_trans(wfn.variable(prop) ) ) for prop in {[ trans_prop(x) for x in properties]} ]",
-        f"return new_di",
-        # "return dict({ ",
-        # *[ind+f"'{trans_prop(prop)}' :  my_trans(wfn.variable('{trans_prop(prop).upper()}')) ," for prop in properties], # the -1 is for the conversion from psi4 convention to usual convention (e.g. dipole is negative since it e-)
-        # '})'
-    ]
-
-    lines=[ 
-        f"def eval_moments({wfn_internal}):",
-        *[ind+l for l in lines],
-    ]
-    return lines
-
-def tensor_tag_from_indices(indices):
-    """Return the tensor tag string for a given index combination (e.g. [0,1,2] -> 'xyz')."""
-    mapper = ["x", "y", "z"]
-    return ''.join(mapper[i] for i in indices)
-def tag_matrix(M, field=None):
-    def get_val(ind):
-        return float(M[tuple(ind)])
-    new_M={}
-    M = np.asarray(M)
-    base_tag=f"@{field}" if not field is None else ''
-
-    dims=M.shape
-    # get all indices of M
-    all_indices = list(np.ndindex(M.shape))
-    for ind in all_indices:
-        tag=tensor_tag_from_indices(ind)
-        new_M.update({tag+base_tag: get_val(ind)})
-
-    return new_M
 
 
 def pol_transform(pols):

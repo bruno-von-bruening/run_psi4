@@ -11,6 +11,7 @@ class variable_names(BaseModel):
     molecule_name: str = f"the_molecule" # call the two make clear that this is an instance
     molecule_string: str = f"monomer_string"
     storage_file_name: str = f"storage_file" # internally used variable name
+    main_wfn: str = 'wfn'
 class file_names(BaseModel):
     storage: str | None=None # The file that will be generated after the run
     input: str | None=None # The input file name

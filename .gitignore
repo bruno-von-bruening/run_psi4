@@ -14,3 +14,7 @@ tests/check_errors/drop_info
 tests/check_errors/insufficient_memory
 
 tests/basic/basis_set_recognized/*/
+
+**/*.log
+**/shell_output.*
+**/timer.dat

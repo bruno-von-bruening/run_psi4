@@ -1,4 +1,6 @@
-from . import *
+from ..job_lines import *
+
+from run_psi4.types.job import psi4_job, store
 
 def center_of_charge_function():
     """ Return the function name and lines defining it
@@ -29,3 +31,15 @@ def calculate_center_of_mass(atom_types, coordinates):
     atom_numbers=np.array(atom_numbers)
     com=np.sum(atom_numbers[:,None]*coordinates, axis=0)/np.sum(atom_numbers)
     return com
+
+def set_origin(job:psi4_job):
+    func_name, func_lines = center_of_charge_function()
+    from run_psi4.input_file_generation.variable_registry import var_mem
+    var_mem.update(center_of_charge='center_of_charge')
+    return (func_lines, [
+        f"# Define center of charge (in angstrom!) and assert that it has been read in correctly!",
+        f"{get_var('center_of_charge')} = {func_name}({job.var_names.molecule_name}) # For evaluation of multipoles and setup of external field",
+        f"core.set_global_option('PROPERTIES_ORIGIN', np.array({get_var('center_of_charge')}).tolist() )",
+        *store(job, ('results','properties','expansion_center'), f"get_option('None','PROPERTIES_ORIGIN')"),
+        # f"assert {get_var('center_of_charge')}==get_option('None','PROPERTIES_ORIGIN'), 'Apparently center of ORIGIN was set incorrectly!'",
+    ])

@@ -2,9 +2,12 @@ from . import *
 
 from run_psi4.types.job import psi4_job, store
 
+from run_psi4.input_file_generation.functions.get_moments import meassure_multipoles_func
+from run_psi4.input_file_generation.functions.tag_matrix import tensor_tag_from_indices,tag_matrix
+
 from .pol_ff_functions import (
-    meassure_multipoles_func, get_moment_function, make_external_field, pol_transform,
-    tensor_tag_from_indices, tag_matrix, make_moments
+    get_moment_function, make_external_field, pol_transform,
+    make_moments
 )
 
 lis=List[str]
