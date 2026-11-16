@@ -169,7 +169,7 @@ def generate_pol_ff_job_lines(job:psi4_job)->Tuple[lis,lis]:
 
     # save the external potentials in a dictionary
 
-    from .pol_funcs import center_of_charge_function
+    from run_psi4.input_file_generation.job_line.functions.center_of import center_of_charge_function
     from .pol_ff_functions import make_external_field, nuclear_external_point_charge_energy
     func_lines+=inspect.getsource(make_external_field).split('\n')
     func_name, func_lines_new = center_of_charge_function()

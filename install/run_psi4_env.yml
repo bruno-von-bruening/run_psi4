@@ -16,6 +16,6 @@ dependencies:
     - rich
     - setuptools-scm
     - basis_set_exchange
-    - git+ssh://git@github.com/bruno-von-bruening/qcp_global_utils.git@c4106276e
-    - git+ssh://git@github.com/bruno-von-bruening/qcp_objects.git@bc319ffc1
     - .. # installs top-level directory
+    - git+ssh://git@github.com/bruno-von-bruening/qcp_global_utils.git@68f3857ae
+    - git+ssh://git@github.com/bruno-von-bruening/qcp_objects.git@6e0294ed5

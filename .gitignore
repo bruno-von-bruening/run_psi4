@@ -4,6 +4,9 @@ back/
 **.egg-info/
 **/__pycache__/
 
+install/test_*.yml
+install/package_versions.yaml
+
 tests/basic_tests/**/*
 !tests/basic_tests/**/*.sh
 src/run_psi4/_version.py
