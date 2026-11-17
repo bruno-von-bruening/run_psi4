@@ -1,0 +1,42 @@
+add_method_tags: true
+do_moments: true
+executable: null
+execute: false
+geom:
+  ac_shift: null
+  charge: 0
+  multiplicity: 1
+  xyz_file: dummy_h2
+job_settings:
+  delta_dip: 0.001
+  delta_qad: 0.0001
+  do_moments: true
+jobname: null
+jobtag: single_point
+machine_settings:
+  memory: 4GB
+  num_threads: 4
+method:
+  basis_set: cc-pvdz
+  cd_thres: 0.0001
+  convergence:
+    d_convergence: 1.0e-08
+    e_convergence: 1.0e-08
+    r_convergence: 1.0e-08
+  df_opts:
+    df_basis_cc: null
+    df_basis_mp2: null
+    df_basis_scf: null
+  dft_opts:
+    do_grac: false
+    do_ip_tuning: false
+    radial_points: 75
+    radial_scheme: TREUTLER
+    spherical_points: 302
+    spherical_scheme: LEBEDEV
+  fno: false
+  fno_thres: 1.0e-06
+  freeze_core: true
+  method_tag: mp2
+  reference: rhf
+  scf_type: df
