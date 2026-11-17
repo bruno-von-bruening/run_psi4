@@ -44,6 +44,6 @@ def test_basis_recognized(bs):
         p=sp.Popen(cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
         stdout,stderr=[ x.decode() for x in p.communicate() ]
         if p.returncode != 0:
-            raise Exception((stdout,stderr))
+            raise Exception(f"STDOUT={stdout}\bSTDERR={stderr}")
 
 
